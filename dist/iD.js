@@ -25932,7 +25932,7 @@ ${source}
       }
       taginfoApiUrl = "https://taginfo.openstreetmap.org/api/4/";
       nominatimApiUrl = "https://nominatim.openstreetmap.org/";
-      showDonationMessage = false;
+      showDonationMessage = true;
     }
   });
 
@@ -39099,6 +39099,254 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       init_loading();
       init_util2();
       init_osm();
+    }
+  });
+
+  // modules/core/heritage_project.js
+  var heritage_project_exports = {};
+  __export(heritage_project_exports, {
+    coreHeritageProject: () => coreHeritageProject
+  });
+  function cleanObjectID(value) {
+    return String(value || "").trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+  function objectIDForEntity(project, entity) {
+    return cleanObjectID(entity.tags.objectID) || cleanObjectID(entity.tags["heritage:object_id"]) || cleanObjectID(`${project.folder}-${entity.id}`);
+  }
+  async function requestJSON(url, options = {}) {
+    const response = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+      ...options
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(json.error || response.statusText || "Request failed");
+    }
+    return json;
+  }
+  function coreHeritageProject(context) {
+    const dispatch11 = dispatch_default("change", "saved", "error");
+    const heritage = {};
+    let _projects = [];
+    let _projectsRoot = "";
+    let _activeProject = null;
+    let _lastFeatureCount = 0;
+    let _lastError = null;
+    const debouncedSave = debounce2(() => {
+      if (_activeProject && context.history().hasChanges()) {
+        heritage.saveActiveProject().catch(reportError);
+      }
+    }, 1e3);
+    function reportError(err) {
+      _lastError = err;
+      dispatch11.call("error", heritage, err);
+    }
+    function activateProject(project) {
+      _activeProject = project;
+      corePreferences(ACTIVE_PROJECT_PREF, project.folder);
+      return _activeProject;
+    }
+    function currentImageryMetadata() {
+      const background = context.background();
+      const source = background && background.baseLayerSource && background.baseLayerSource();
+      const projectTimestamp = _activeProject && _activeProject.imageryTimestamp;
+      if (!source) {
+        return {
+          imageryLayerID: "",
+          imagerySource: "",
+          imageryTimestamp: projectTimestamp || ""
+        };
+      }
+      const startDate = source.startDate || "";
+      const endDate = source.endDate || "";
+      let imageryTimestamp = projectTimestamp || "";
+      if (!imageryTimestamp && (startDate || endDate)) {
+        imageryTimestamp = startDate === endDate ? startDate : [startDate, endDate].filter(Boolean).join("/");
+      }
+      return {
+        imageryLayerID: source.id || "",
+        imagerySource: source.imageryUsed && source.imageryUsed() || source.name && source.name() || "",
+        imageryTimestamp
+      };
+    }
+    function featureForEntity(change) {
+      const project = _activeProject;
+      if (!project || change.changeType === "deleted") return null;
+      const graph = context.graph();
+      const entity = graph.hasEntity(change.entity.id);
+      if (!entity || entity.geometry(graph) === "vertex") return null;
+      const geometry2 = entity.asGeoJSON(graph);
+      if (!geometry2 || geometry2.type === "FeatureCollection") return null;
+      const imagery = currentImageryMetadata();
+      const objectID = objectIDForEntity(project, entity);
+      const properties = {
+        ...entity.tags,
+        objectID,
+        project: project.name,
+        projectFolder: project.folder,
+        imageryTimestamp: imagery.imageryTimestamp,
+        imageryCRS: project.crs || "",
+        imagerySource: imagery.imagerySource,
+        imageryLayerID: imagery.imageryLayerID,
+        idEditorEntityID: entity.id,
+        idEditorEntityType: entity.type,
+        changeType: change.changeType
+      };
+      if (entity.tags["heritage:destroyed"] === "yes" || entity.tags["heritage:status"] === "destroyed") {
+        properties.destroyed = "yes";
+      }
+      return {
+        type: "Feature",
+        id: objectID,
+        properties,
+        geometry: geometry2
+      };
+    }
+    heritage.init = function() {
+      context.history().on("change.heritageProject", function() {
+        debouncedSave();
+      });
+      return heritage;
+    };
+    heritage.projects = () => _projects.slice();
+    heritage.projectsRoot = () => _projectsRoot;
+    heritage.activeProject = () => _activeProject;
+    heritage.lastFeatureCount = () => _lastFeatureCount;
+    heritage.lastError = () => _lastError;
+    heritage.loadProjects = async function() {
+      const result2 = await requestJSON(`${API_ROOT}/projects`);
+      _projects = result2.projects || [];
+      _projectsRoot = result2.projectsRoot || "";
+      const storedFolder = corePreferences(ACTIVE_PROJECT_PREF);
+      const storedProject = _projects.find((project) => project.folder === storedFolder);
+      if (storedProject) activateProject(storedProject);
+      dispatch11.call("change", heritage);
+      return _projects;
+    };
+    heritage.createProject = async function(attrs) {
+      const result2 = await requestJSON(`${API_ROOT}/projects`, {
+        method: "POST",
+        body: JSON.stringify(attrs || {})
+      });
+      const createdProject = result2.project;
+      corePreferences(ACTIVE_PROJECT_PREF, createdProject.folder);
+      await heritage.loadProjects();
+      activateProject(_projects.find((project) => project.folder === createdProject.folder) || createdProject);
+      heritage.applyCustomImagery();
+      dispatch11.call("change", heritage);
+      return _activeProject;
+    };
+    heritage.setActiveProject = async function(folder) {
+      const result2 = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(folder)}/metadata`);
+      activateProject(result2.project);
+      heritage.applyCustomImagery();
+      dispatch11.call("change", heritage);
+      return _activeProject;
+    };
+    heritage.updateActiveProject = async function(attrs) {
+      if (!_activeProject) {
+        throw new Error("Create or open a project first.");
+      }
+      const folder = _activeProject.folder;
+      const result2 = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(folder)}/metadata`, {
+        method: "PUT",
+        body: JSON.stringify(attrs || {})
+      });
+      const updatedProject = result2.project;
+      activateProject(updatedProject);
+      _projects = _projects.map((project) => project.folder === updatedProject.folder ? updatedProject : project);
+      heritage.applyCustomImagery();
+      dispatch11.call("change", heritage);
+      return _activeProject;
+    };
+    heritage.applyCustomImagery = function() {
+      if (!_activeProject || !_activeProject.customTileURL) return heritage;
+      const background = context.background();
+      const customSource = background && background.findSource && background.findSource("custom");
+      if (!customSource) return heritage;
+      customSource.template(_activeProject.customTileURL);
+      corePreferences("background-custom-template", _activeProject.customTileURL);
+      corePreferences("background-last-used", "custom");
+      background.baseLayerSource(customSource);
+      return heritage;
+    };
+    heritage.toGeoJSON = function() {
+      const project = _activeProject;
+      if (!project) {
+        throw new Error("Create or open a project first.");
+      }
+      const summary = context.history().difference().summary();
+      const features = summary.map(featureForEntity).filter(Boolean);
+      _lastFeatureCount = features.length;
+      return {
+        type: "FeatureCollection",
+        name: project.name,
+        metadata: {
+          project: project.name,
+          projectFolder: project.folder,
+          imageryTimestamp: project.imageryTimestamp || "",
+          imageryCRS: project.crs || "",
+          customTileURL: project.customTileURL || "",
+          generatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        features
+      };
+    };
+    heritage.saveActiveProject = async function() {
+      const project = _activeProject;
+      if (!project) {
+        throw new Error("Create or open a project first.");
+      }
+      const featureCollection2 = heritage.toGeoJSON();
+      const result2 = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(project.folder)}/features`, {
+        method: "PUT",
+        body: JSON.stringify(featureCollection2)
+      });
+      _lastFeatureCount = result2.featureCount || featureCollection2.features.length;
+      _lastError = null;
+      dispatch11.call("saved", heritage, _lastFeatureCount);
+      dispatch11.call("change", heritage);
+      return featureCollection2;
+    };
+    heritage.exportURL = function() {
+      if (!_activeProject) return "#";
+      return `${API_ROOT}/projects/${encodeURIComponent(_activeProject.folder)}/export.geojson`;
+    };
+    heritage.markDestroyed = function(entityIDs) {
+      const graph = context.graph();
+      const ids = (entityIDs || context.selectedIDs()).map((id2) => graph.hasEntity(id2)).filter((entity) => entity && entity.geometry(graph) !== "vertex").map((entity) => entity.id);
+      if (!ids.length) {
+        throw new Error("Select a line or polygon first.");
+      }
+      const actions = ids.map((id2) => {
+        const entity = graph.entity(id2);
+        return actionChangeTags(id2, {
+          ...entity.tags,
+          "heritage:destroyed": "yes",
+          "heritage:status": "destroyed"
+        });
+      });
+      actions.push("Marked selected feature as destroyed");
+      context.perform(...actions);
+      return ids;
+    };
+    heritage.reset = function() {
+      debouncedSave.cancel();
+      return heritage;
+    };
+    return utilRebind(heritage, dispatch11, "on");
+  }
+  var API_ROOT, ACTIVE_PROJECT_PREF;
+  var init_heritage_project = __esm({
+    "modules/core/heritage_project.js"() {
+      "use strict";
+      init_src();
+      init_compat2();
+      init_change_tags();
+      init_preferences();
+      init_util2();
+      API_ROOT = "/heritage/api";
+      ACTIVE_PROJECT_PREF = "heritage-active-project";
     }
   });
 
@@ -69798,6 +70046,193 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
     }
   });
 
+  // modules/ui/tools/heritage_project.js
+  var heritage_project_exports2 = {};
+  __export(heritage_project_exports2, {
+    uiToolHeritageProject: () => uiToolHeritageProject
+  });
+  function uiToolHeritageProject(context) {
+    const tool = {
+      id: "heritage_project",
+      label: (selection2) => selection2.text("Project")
+    };
+    let button = null;
+    let tooltipBehavior = null;
+    let statusMessage = "";
+    let statusType = "";
+    function manager() {
+      return context.heritageProject();
+    }
+    function setStatus(message, type2 = "") {
+      statusMessage = message || "";
+      statusType = type2;
+      context.container().selectAll(".heritage-project-status").attr("data-status", statusType).text(statusMessage);
+    }
+    function updateButtonState() {
+      if (!button) return;
+      const activeProject = manager().activeProject();
+      button.classed("active", !!activeProject);
+      if (tooltipBehavior) {
+        tooltipBehavior.title(() => (selection2) => selection2.text(activeProject ? activeProject.name : "Open research project"));
+      }
+    }
+    async function withStatus(action, successMessage) {
+      try {
+        const result2 = await action();
+        const message = typeof successMessage === "function" ? successMessage(result2) : successMessage;
+        setStatus(message, "success");
+        renderPanel();
+        return result2;
+      } catch (err) {
+        setStatus(err.message || "Project action failed", "error");
+        return null;
+      }
+    }
+    function valuesFromPanel(panel) {
+      return {
+        name: panel.select(".heritage-project-name").property("value").trim(),
+        imageryTimestamp: panel.select(".heritage-project-timestamp").property("value").trim(),
+        crs: panel.select(".heritage-project-crs").property("value").trim() || "EPSG:3857",
+        customTileURL: panel.select(".heritage-project-tile-url").property("value").trim()
+      };
+    }
+    function closePanel() {
+      context.container().selectAll(".heritage-project-panel-wrap").remove();
+    }
+    function openPanel(d3_event) {
+      if (d3_event) d3_event.preventDefault();
+      manager().loadProjects().then(() => {
+        statusMessage = "";
+        statusType = "";
+        renderPanel();
+      }).catch((err) => {
+        statusMessage = err.message || "Could not load projects";
+        statusType = "error";
+        renderPanel();
+      });
+    }
+    function renderPanel() {
+      const heritage = manager();
+      const activeProject = heritage.activeProject();
+      const projects = heritage.projects();
+      let wrap3 = context.container().selectAll(".heritage-project-panel-wrap").data([0]);
+      const wrapEnter = wrap3.enter().append("div").attr("class", "heritage-project-panel-wrap");
+      const panelEnter = wrapEnter.append("div").attr("class", "heritage-project-panel");
+      const header = panelEnter.append("div").attr("class", "header fillL");
+      header.append("h2").text("Research Project");
+      header.append("button").attr("class", "close").attr("title", "Close").on("click", closePanel).call(svgIcon("#iD-icon-close"));
+      const body = panelEnter.append("div").attr("class", "body fillL");
+      body.append("div").attr("class", "heritage-project-status");
+      const active = body.append("div").attr("class", "heritage-project-active");
+      active.append("strong").text("Active project");
+      active.append("span");
+      const existing = body.append("label").attr("class", "heritage-project-field");
+      existing.append("span").text("Open project");
+      existing.append("select").attr("class", "heritage-project-select").on("change", function() {
+        const folder = select_default2(this).property("value");
+        if (!folder) return;
+        withStatus(
+          () => heritage.setActiveProject(folder),
+          "Project opened."
+        );
+      });
+      [
+        ["Project name", "heritage-project-name", "text", "Timbuktu June 2012"],
+        ["Imagery timestamp", "heritage-project-timestamp", "text", "2012-06-30 or 2012-06-28/2012-06-30"],
+        ["Imagery CRS", "heritage-project-crs", "text", "EPSG:3857"]
+      ].forEach(([label, klass, type2, placeholder]) => {
+        const field = body.append("label").attr("class", "heritage-project-field");
+        field.append("span").text(label);
+        field.append("input").attr("class", klass).attr("type", type2).attr("placeholder", placeholder);
+      });
+      const tileField = body.append("label").attr("class", "heritage-project-field");
+      tileField.append("span").text("Custom tile or WMS template");
+      tileField.append("textarea").attr("class", "heritage-project-tile-url").attr("rows", 3).attr("placeholder", "https://tiles.example.org/{z}/{x}/{y}.png");
+      const buttons = body.append("div").attr("class", "buttons fillL heritage-project-buttons");
+      buttons.append("button").attr("class", "action button heritage-create-project").text("Create");
+      buttons.append("button").attr("class", "secondary-action button heritage-update-project").text("Update Metadata");
+      buttons.append("button").attr("class", "secondary-action button heritage-save-project").text("Save");
+      buttons.append("button").attr("class", "secondary-action button heritage-destroyed").text("Mark Destroyed");
+      buttons.append("a").attr("class", "secondary-action button heritage-export-project").attr("target", "_blank").text("Export GeoJSON");
+      wrap3 = wrapEnter.merge(wrap3);
+      const panel = wrap3.select(".heritage-project-panel");
+      panel.select(".heritage-project-status").attr("data-status", statusType).text(statusMessage);
+      panel.select(".heritage-project-active span").text(activeProject ? ` ${activeProject.name}` : " none");
+      const options = panel.select(".heritage-project-select").selectAll("option").data([{ folder: "", name: "Select a project" }].concat(projects), (d2) => d2.folder);
+      options.exit().remove();
+      options.enter().append("option").merge(options).attr("value", (d2) => d2.folder).text((d2) => d2.name);
+      panel.select(".heritage-project-select").property("value", activeProject ? activeProject.folder : "");
+      panel.select(".heritage-project-name").property("value", activeProject ? activeProject.name : "");
+      panel.select(".heritage-project-timestamp").property("value", activeProject ? activeProject.imageryTimestamp || "" : "");
+      panel.select(".heritage-project-crs").property("value", activeProject ? activeProject.crs || "EPSG:3857" : "EPSG:3857");
+      panel.select(".heritage-project-tile-url").property("value", activeProject ? activeProject.customTileURL || "" : "");
+      panel.select(".heritage-create-project").on("click", function(d3_event) {
+        d3_event.preventDefault();
+        withStatus(
+          () => heritage.createProject(valuesFromPanel(panel)),
+          "Project created."
+        );
+      });
+      panel.select(".heritage-update-project").classed("disabled", !activeProject).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        withStatus(
+          () => heritage.updateActiveProject(valuesFromPanel(panel)),
+          "Project metadata updated."
+        );
+      });
+      panel.select(".heritage-save-project").classed("disabled", !activeProject).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        withStatus(
+          () => heritage.saveActiveProject(),
+          (featureCollection2) => `Saved ${featureCollection2.features.length} features.`
+        );
+      });
+      panel.select(".heritage-destroyed").classed("disabled", !activeProject).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        withStatus(
+          async () => {
+            const ids = heritage.markDestroyed();
+            await heritage.saveActiveProject();
+            return ids;
+          },
+          "Selected feature marked destroyed."
+        );
+      });
+      panel.select(".heritage-export-project").classed("disabled", !activeProject).attr("href", activeProject ? heritage.exportURL() : "#").attr("download", activeProject ? `${activeProject.folder}.geojson` : null).on("click", function(d3_event) {
+        if (!activeProject) d3_event.preventDefault();
+      });
+      updateButtonState();
+    }
+    tool.render = function(selection2) {
+      tooltipBehavior = uiTooltip().placement("bottom").title(() => (selection3) => selection3.text("Open research project")).scrollContainer(context.container().select(".top-toolbar"));
+      button = selection2.append("button").attr("class", "heritage-project bar-button").on("click", openPanel).call(tooltipBehavior);
+      button.call(svgIcon("#iD-icon-data"));
+      manager().on("change.heritageProjectTool", updateButtonState).on("saved.heritageProjectTool", (count2) => {
+        setStatus(`Saved ${count2} features.`, "success");
+      }).on("error.heritageProjectTool", (err) => {
+        setStatus(err.message || "Project action failed", "error");
+      });
+      updateButtonState();
+    };
+    tool.uninstall = function() {
+      manager().on("change.heritageProjectTool", null).on("saved.heritageProjectTool", null).on("error.heritageProjectTool", null);
+      button = null;
+      tooltipBehavior = null;
+    };
+    return tool;
+  }
+  var init_heritage_project2 = __esm({
+    "modules/ui/tools/heritage_project.js"() {
+      "use strict";
+      init_src6();
+      init_icon();
+      init_tooltip();
+    }
+  });
+
   // modules/ui/tools/modes.js
   var modes_exports = {};
   __export(modes_exports, {
@@ -70023,16 +70458,40 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
     var history = context.history();
     var key = uiCmd("\u2318S");
     var _numChanges = 0;
+    var _isProjectSaving = false;
     function isSaving() {
       var mode2 = context.mode();
       return mode2 && mode2.id === "save";
     }
     function isDisabled() {
-      return _numChanges === 0 || isSaving();
+      return _numChanges === 0 || isSaving() || _isProjectSaving;
     }
     function save(d3_event) {
       d3_event.preventDefault();
       if (!context.inIntro() && !isSaving() && history.hasChanges()) {
+        var heritageProject = context.heritageProject && context.heritageProject();
+        if (heritageProject) {
+          if (!heritageProject.activeProject()) {
+            context.ui().flash.duration(2500).iconName("#iD-icon-data").label("Create or open a research project first.")();
+            return;
+          }
+          _isProjectSaving = true;
+          if (button) {
+            button.classed("disabled", true).classed("loading", true);
+          }
+          heritageProject.saveActiveProject().then(function(featureCollection2) {
+            context.ui().flash.duration(2500).iconName("#iD-icon-save").iconClass("success").label("Saved " + featureCollection2.features.length + " features to the active project.")();
+          }).catch(function(err) {
+            context.ui().flash.duration(3e3).iconName("#iD-icon-alert").label(err.message || "Project save failed.")();
+          }).finally(function() {
+            _isProjectSaving = false;
+            if (button) {
+              button.classed("loading", false);
+            }
+            updateCount();
+          });
+          return;
+        }
         context.enter(modeSave(context));
       }
     }
@@ -70246,6 +70705,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
   var tools_exports = {};
   __export(tools_exports, {
     uiToolDrawModes: () => uiToolDrawModes,
+    uiToolHeritageProject: () => uiToolHeritageProject,
     uiToolNotes: () => uiToolNotes,
     uiToolSave: () => uiToolSave,
     uiToolSidebarToggle: () => uiToolSidebarToggle,
@@ -70254,6 +70714,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
   var init_tools = __esm({
     "modules/ui/tools/index.js"() {
       "use strict";
+      init_heritage_project2();
       init_modes();
       init_notes();
       init_save();
@@ -70268,7 +70729,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
     uiTopToolbar: () => uiTopToolbar
   });
   function uiTopToolbar(context) {
-    var sidebarToggle = uiToolSidebarToggle(context), modes = uiToolDrawModes(context), notes = uiToolNotes(context), undoRedo = uiToolUndoRedo(context), save = uiToolSave(context);
+    var sidebarToggle = uiToolSidebarToggle(context), modes = uiToolDrawModes(context), notes = uiToolNotes(context), undoRedo = uiToolUndoRedo(context), heritageProject = uiToolHeritageProject(context), save = uiToolSave(context);
     function notesEnabled() {
       var noteLayer = context.layers().layer("notes");
       return noteLayer && noteLayer.enabled();
@@ -70292,7 +70753,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         if (notesEnabled()) {
           tools = tools.concat([notes, "spacer"]);
         }
-        tools = tools.concat([undoRedo, save]);
+        tools = tools.concat([undoRedo, heritageProject, save]);
         var toolbarItems = bar.selectAll(".toolbar-item").data(tools, function(d2) {
           return d2.id || d2;
         });
@@ -78740,10 +79201,12 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
     let _history;
     let _validator;
     let _uploader;
+    let _heritageProject;
     context.connection = () => _connection;
     context.history = () => _history;
     context.validator = () => _validator;
     context.uploader = () => _uploader;
+    context.heritageProject = () => _heritageProject;
     context.preauth = (options) => {
       if (_connection) {
         _connection.switch(options);
@@ -79050,6 +79513,7 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
       _features.reset();
       _history.reset();
       _uploader.reset();
+      _heritageProject.reset();
       context.container().select(".inspector-wrap *").remove();
       return context;
     };
@@ -79092,6 +79556,7 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
         context.redo = withDebouncedSave(_history.redo);
         _validator = coreValidator(context);
         _uploader = coreUploader(context);
+        _heritageProject = coreHeritageProject(context);
         _background = rendererBackground(context);
         _features = rendererFeatures(context);
         _map = rendererMap(context);
@@ -79118,6 +79583,7 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
         });
         _map.init();
         _validator.init();
+        _heritageProject.init();
         _features.init();
         _history.migrateHistoryData();
         if (services.maprules && context.initialHashParams.maprules) {
@@ -79149,6 +79615,7 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
       init_file_fetcher();
       init_localizer();
       init_history();
+      init_heritage_project();
       init_validator();
       init_uploader();
       init_raw_mercator();
@@ -79169,6 +79636,7 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
     coreDifference: () => coreDifference,
     coreFileFetcher: () => coreFileFetcher,
     coreGraph: () => coreGraph,
+    coreHeritageProject: () => coreHeritageProject,
     coreHistory: () => coreHistory,
     coreLocalizer: () => coreLocalizer,
     coreTree: () => coreTree,
@@ -79187,6 +79655,7 @@ ${_t.html("settings.custom_background.instructions.license_disclaimer")}
       init_file_fetcher();
       init_difference4();
       init_graph();
+      init_heritage_project();
       init_history();
       init_localizer();
       init_LocationManager();
@@ -98603,6 +99072,7 @@ this.ifd0Offset: ${this.ifd0Offset}, file.byteLength: ${e3.byteLength}`), e3.tif
         "../core/difference.js": () => Promise.resolve().then(() => (init_difference4(), difference_exports)),
         "../core/file_fetcher.js": () => Promise.resolve().then(() => (init_file_fetcher(), file_fetcher_exports)),
         "../core/graph.ts": () => Promise.resolve().then(() => (init_graph(), graph_exports)),
+        "../core/heritage_project.js": () => Promise.resolve().then(() => (init_heritage_project(), heritage_project_exports)),
         "../core/history.js": () => Promise.resolve().then(() => (init_history(), history_exports)),
         "../core/index.ts": () => Promise.resolve().then(() => (init_core(), core_exports)),
         "../core/localizer.js": () => Promise.resolve().then(() => (init_localizer(), localizer_exports)),
@@ -98856,6 +99326,7 @@ this.ifd0Offset: ${this.ifd0Offset}, file.byteLength: ${e3.byteLength}`), e3.tif
         "../ui/success.js": () => Promise.resolve().then(() => (init_success(), success_exports)),
         "../ui/tag_reference.js": () => Promise.resolve().then(() => (init_tag_reference(), tag_reference_exports)),
         "../ui/toggle.js": () => Promise.resolve().then(() => (init_toggle(), toggle_exports)),
+        "../ui/tools/heritage_project.js": () => Promise.resolve().then(() => (init_heritage_project2(), heritage_project_exports2)),
         "../ui/tools/index.js": () => Promise.resolve().then(() => (init_tools(), tools_exports)),
         "../ui/tools/modes.js": () => Promise.resolve().then(() => (init_modes(), modes_exports)),
         "../ui/tools/notes.js": () => Promise.resolve().then(() => (init_notes(), notes_exports)),
@@ -100067,6 +100538,7 @@ this.ifd0Offset: ${this.ifd0Offset}, file.byteLength: ${e3.byteLength}`), e3.tif
     coreDifference: () => coreDifference,
     coreFileFetcher: () => coreFileFetcher,
     coreGraph: () => coreGraph,
+    coreHeritageProject: () => coreHeritageProject,
     coreHistory: () => coreHistory,
     coreLocalizer: () => coreLocalizer,
     coreTree: () => coreTree,

@@ -11,6 +11,7 @@ import { t } from '../core/localizer';
 import { fileFetcher } from './file_fetcher';
 import { localizer } from './localizer';
 import { coreHistory } from './history';
+import { coreHeritageProject } from './heritage_project';
 import { coreValidator } from './validator';
 import { coreUploader } from './uploader';
 import { geoRawMercator } from '../geo/raw_mercator';
@@ -103,10 +104,13 @@ export function coreContext() {
   let _validator;
   /** @type {ReturnType<coreUploader>} */
   let _uploader;
+  /** @type {ReturnType<coreHeritageProject>} */
+  let _heritageProject;
   context.connection = () => _connection;
   context.history = () => _history;
   context.validator = () => _validator;
   context.uploader = () => _uploader;
+  context.heritageProject = () => _heritageProject;
 
   /* Connection */
   context.preauth = (options) => {
@@ -525,6 +529,7 @@ export function coreContext() {
     _features.reset();
     _history.reset();
     _uploader.reset();
+    _heritageProject.reset();
 
     // don't leave stale state in the inspector
     context.container().select('.inspector-wrap *').remove();
@@ -577,6 +582,7 @@ export function coreContext() {
 
       _validator = coreValidator(context);
       _uploader = coreUploader(context);
+      _heritageProject = coreHeritageProject(context);
 
       _background = rendererBackground(context);
       _features = rendererFeatures(context);
@@ -615,6 +621,7 @@ export function coreContext() {
 
       _map.init();
       _validator.init();
+      _heritageProject.init();
       _features.init();
 
       // Migrate history data from localStorage to IndexedDB

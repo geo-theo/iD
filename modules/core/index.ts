@@ -2,6 +2,7 @@ export { coreContext } from './context';
 export { coreFileFetcher, fileFetcher } from './file_fetcher';
 export { coreDifference } from './difference';
 export { coreGraph } from './graph';
+export { coreHeritageProject } from './heritage_project';
 export { coreHistory } from './history';
 export { coreLocalizer, t, localizer } from './localizer';
 export { LocationManager, locationManager } from './LocationManager';

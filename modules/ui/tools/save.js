@@ -19,6 +19,7 @@ export function uiToolSave(context) {
     var history = context.history();
     var key = uiCmd('⌘S');
     var _numChanges = 0;
+    var _isProjectSaving = false;
 
     function isSaving() {
         var mode = context.mode();
@@ -26,12 +27,53 @@ export function uiToolSave(context) {
     }
 
     function isDisabled() {
-        return _numChanges === 0 || isSaving();
+        return _numChanges === 0 || isSaving() || _isProjectSaving;
     }
 
     function save(d3_event) {
         d3_event.preventDefault();
         if (!context.inIntro() && !isSaving() && history.hasChanges()) {
+            var heritageProject = context.heritageProject && context.heritageProject();
+            if (heritageProject) {
+                if (!heritageProject.activeProject()) {
+                    context.ui().flash
+                        .duration(2500)
+                        .iconName('#iD-icon-data')
+                        .label('Create or open a research project first.')();
+                    return;
+                }
+
+                _isProjectSaving = true;
+                if (button) {
+                    button
+                        .classed('disabled', true)
+                        .classed('loading', true);
+                }
+
+                heritageProject.saveActiveProject()
+                    .then(function(featureCollection) {
+                        context.ui().flash
+                            .duration(2500)
+                            .iconName('#iD-icon-save')
+                            .iconClass('success')
+                            .label('Saved ' + featureCollection.features.length + ' features to the active project.')();
+                    })
+                    .catch(function(err) {
+                        context.ui().flash
+                            .duration(3000)
+                            .iconName('#iD-icon-alert')
+                            .label(err.message || 'Project save failed.')();
+                    })
+                    .finally(function() {
+                        _isProjectSaving = false;
+                        if (button) {
+                            button.classed('loading', false);
+                        }
+                        updateCount();
+                    });
+                return;
+            }
+
             context.enter(modeSave(context));
         }
     }

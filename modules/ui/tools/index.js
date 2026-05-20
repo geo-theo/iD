@@ -1,3 +1,4 @@
+export * from './heritage_project';
 export * from './modes';
 export * from './notes';
 export * from './save';
