@@ -39,7 +39,7 @@ export function uiToolSave(context) {
                     context.ui().flash
                         .duration(2500)
                         .iconName('#iD-icon-data')
-                        .label('Create or open a research project first.')();
+                        .label('Create or open a dataset first.')();
                     return;
                 }
 
@@ -56,13 +56,13 @@ export function uiToolSave(context) {
                             .duration(2500)
                             .iconName('#iD-icon-save')
                             .iconClass('success')
-                            .label('Saved ' + featureCollection.features.length + ' features to the active project.')();
+                            .label('Saved ' + featureCollection.features.length + ' features to the active dataset.')();
                     })
                     .catch(function(err) {
                         context.ui().flash
                             .duration(3000)
                             .iconName('#iD-icon-alert')
-                            .label(err.message || 'Project save failed.')();
+                            .label(err.message || 'Dataset save failed.')();
                     })
                     .finally(function() {
                         _isProjectSaving = false;

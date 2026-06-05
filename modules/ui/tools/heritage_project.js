@@ -7,7 +7,7 @@ import { uiTooltip } from '../tooltip';
 export function uiToolHeritageProject(context) {
     const tool = {
         id: 'heritage_project',
-        label: selection => selection.text('Project')
+        label: selection => selection.text('Dataset')
     };
 
     let button = null;
@@ -40,7 +40,7 @@ export function uiToolHeritageProject(context) {
 
         if (tooltipBehavior) {
             tooltipBehavior
-                .title(() => selection => selection.text(activeProject ? activeProject.name : 'Open research project'));
+                .title(() => selection => selection.text(activeProject ? activeProject.name : 'Open dataset'));
         }
     }
 
@@ -53,7 +53,7 @@ export function uiToolHeritageProject(context) {
             renderPanel();
             return result;
         } catch (err) {
-            setStatus(err.message || 'Project action failed', 'error');
+            setStatus(err.message || 'Dataset action failed', 'error');
             return null;
         }
     }
@@ -88,7 +88,7 @@ export function uiToolHeritageProject(context) {
                 renderPanel();
             })
             .catch(err => {
-                statusMessage = err.message || 'Could not load projects';
+                statusMessage = err.message || 'Could not load datasets';
                 statusType = 'error';
                 renderPanel();
             });
@@ -119,7 +119,7 @@ export function uiToolHeritageProject(context) {
 
         header
             .append('h2')
-            .text('Research Project');
+            .text('Dataset Export');
 
         header
             .append('button')
@@ -142,7 +142,7 @@ export function uiToolHeritageProject(context) {
 
         active
             .append('strong')
-            .text('Active project');
+            .text('Active dataset');
 
         active
             .append('span');
@@ -153,7 +153,7 @@ export function uiToolHeritageProject(context) {
 
         existing
             .append('span')
-            .text('Open project');
+            .text('Open dataset');
 
         existing
             .append('select')
@@ -163,12 +163,12 @@ export function uiToolHeritageProject(context) {
                 if (!folder) return;
                 withStatus(
                     () => heritage.setActiveProject(folder),
-                    'Project opened.'
+                    'Dataset opened.'
                 );
             });
 
         [
-            ['Project name', 'heritage-project-name', 'text', 'Timbuktu June 2012'],
+            ['Dataset name', 'heritage-project-name', 'text', 'Timbuktu 2012'],
             ['Imagery timestamp', 'heritage-project-timestamp', 'text', '2012-06-30 or 2012-06-28/2012-06-30'],
             ['Imagery CRS', 'heritage-project-crs', 'text', 'EPSG:3857']
         ].forEach(([label, klass, type, placeholder]) => {
@@ -244,12 +244,12 @@ export function uiToolHeritageProject(context) {
         buttons
             .append('button')
             .attr('class', 'action button heritage-create-project')
-            .text('Create');
+            .text('Create Dataset');
 
         buttons
             .append('button')
             .attr('class', 'secondary-action button heritage-update-project')
-            .text('Update Metadata');
+            .text('Update Dataset');
 
         buttons
             .append('button')
@@ -282,7 +282,7 @@ export function uiToolHeritageProject(context) {
 
         const options = panel.select('.heritage-project-select')
             .selectAll('option')
-            .data([{ folder: '', name: 'Select a project' }].concat(projects), d => d.folder);
+            .data([{ folder: '', name: 'Select a dataset' }].concat(projects), d => d.folder);
 
         options.exit()
             .remove();
@@ -335,7 +335,7 @@ export function uiToolHeritageProject(context) {
                 d3_event.preventDefault();
                 withStatus(
                     () => heritage.createProject(valuesFromPanel(panel)),
-                    'Project created.'
+                    'Dataset created.'
                 );
             });
 
@@ -346,7 +346,7 @@ export function uiToolHeritageProject(context) {
                 if (!activeProject) return;
                 withStatus(
                     () => heritage.updateActiveProject(valuesFromPanel(panel)),
-                    'Project metadata updated.'
+                    'Dataset metadata updated.'
                 );
             });
 
@@ -453,7 +453,7 @@ export function uiToolHeritageProject(context) {
     tool.render = function(selection) {
         tooltipBehavior = uiTooltip()
             .placement('bottom')
-            .title(() => selection => selection.text('Open research project'))
+            .title(() => selection => selection.text('Open dataset'))
             .scrollContainer(context.container().select('.top-toolbar'));
 
         button = selection
@@ -471,7 +471,7 @@ export function uiToolHeritageProject(context) {
                 setStatus(`Saved ${count} features.`, 'success');
             })
             .on('error.heritageProjectTool', err => {
-                setStatus(err.message || 'Project action failed', 'error');
+                setStatus(err.message || 'Dataset action failed', 'error');
             });
 
         updateButtonState();

@@ -148,6 +148,8 @@ export function coreHeritageProject(context) {
             objectID,
             project: project.name,
             projectFolder: project.folder,
+            dataset: project.name,
+            datasetFolder: project.folder,
             imageryTimestamp: imagery.imageryTimestamp,
             imageryCRS: project.crs || '',
             imagerySource: imagery.imagerySource,
@@ -231,7 +233,7 @@ export function coreHeritageProject(context) {
 
     heritage.updateActiveProject = async function(attrs) {
         if (!_activeProject) {
-            throw new Error('Create or open a project first.');
+            throw new Error('Create or open a dataset first.');
         }
 
         const folder = _activeProject.folder;
@@ -310,7 +312,7 @@ export function coreHeritageProject(context) {
 
     heritage.selectWaybackRelease = async function(releaseNum) {
         if (!_activeProject) {
-            throw new Error('Create or open a project first.');
+            throw new Error('Create or open a dataset first.');
         }
 
         let item = _waybackItems.find(d => String(d.releaseNum) === String(releaseNum));
@@ -340,7 +342,7 @@ export function coreHeritageProject(context) {
     heritage.toGeoJSON = function() {
         const project = _activeProject;
         if (!project) {
-            throw new Error('Create or open a project first.');
+            throw new Error('Create or open a dataset first.');
         }
 
         const summary = context.history().difference().summary();
@@ -356,6 +358,8 @@ export function coreHeritageProject(context) {
             metadata: {
                 project: project.name,
                 projectFolder: project.folder,
+                dataset: project.name,
+                datasetFolder: project.folder,
                 imageryTimestamp: project.imageryTimestamp || '',
                 imageryCRS: project.crs || '',
                 imagerySourceType: project.imagerySourceType || '',
@@ -374,7 +378,7 @@ export function coreHeritageProject(context) {
     heritage.saveActiveProject = async function() {
         const project = _activeProject;
         if (!project) {
-            throw new Error('Create or open a project first.');
+            throw new Error('Create or open a dataset first.');
         }
 
         const featureCollection = heritage.toGeoJSON();

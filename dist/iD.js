@@ -39792,6 +39792,8 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
         objectID,
         project: project.name,
         projectFolder: project.folder,
+        dataset: project.name,
+        datasetFolder: project.folder,
         imageryTimestamp: imagery.imageryTimestamp,
         imageryCRS: project.crs || "",
         imagerySource: imagery.imagerySource,
@@ -39856,7 +39858,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     };
     heritage.updateActiveProject = async function(attrs) {
       if (!_activeProject) {
-        throw new Error("Create or open a project first.");
+        throw new Error("Create or open a dataset first.");
       }
       const folder = _activeProject.folder;
       const result2 = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(folder)}/metadata`, {
@@ -39913,7 +39915,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     };
     heritage.selectWaybackRelease = async function(releaseNum) {
       if (!_activeProject) {
-        throw new Error("Create or open a project first.");
+        throw new Error("Create or open a dataset first.");
       }
       let item = _waybackItems.find((d2) => String(d2.releaseNum) === String(releaseNum));
       if (!item) {
@@ -39938,7 +39940,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     heritage.toGeoJSON = function() {
       const project = _activeProject;
       if (!project) {
-        throw new Error("Create or open a project first.");
+        throw new Error("Create or open a dataset first.");
       }
       const summary = context.history().difference().summary();
       const features = summary.map(featureForEntity).filter(Boolean);
@@ -39949,6 +39951,8 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
         metadata: {
           project: project.name,
           projectFolder: project.folder,
+          dataset: project.name,
+          datasetFolder: project.folder,
           imageryTimestamp: project.imageryTimestamp || "",
           imageryCRS: project.crs || "",
           imagerySourceType: project.imagerySourceType || "",
@@ -39965,7 +39969,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     heritage.saveActiveProject = async function() {
       const project = _activeProject;
       if (!project) {
-        throw new Error("Create or open a project first.");
+        throw new Error("Create or open a dataset first.");
       }
       const featureCollection2 = heritage.toGeoJSON();
       const result2 = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(project.folder)}/features`, {
@@ -70797,7 +70801,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
   function uiToolHeritageProject(context) {
     const tool = {
       id: "heritage_project",
-      label: (selection2) => selection2.text("Project")
+      label: (selection2) => selection2.text("Dataset")
     };
     let button = null;
     let tooltipBehavior = null;
@@ -70816,7 +70820,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       const activeProject = manager().activeProject();
       button.classed("active", !!activeProject);
       if (tooltipBehavior) {
-        tooltipBehavior.title(() => (selection2) => selection2.text(activeProject ? activeProject.name : "Open research project"));
+        tooltipBehavior.title(() => (selection2) => selection2.text(activeProject ? activeProject.name : "Open dataset"));
       }
     }
     async function withStatus(action, successMessage) {
@@ -70827,7 +70831,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         renderPanel();
         return result2;
       } catch (err) {
-        setStatus(err.message || "Project action failed", "error");
+        setStatus(err.message || "Dataset action failed", "error");
         return null;
       }
     }
@@ -70851,7 +70855,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         statusType = "";
         renderPanel();
       }).catch((err) => {
-        statusMessage = err.message || "Could not load projects";
+        statusMessage = err.message || "Could not load datasets";
         statusType = "error";
         renderPanel();
       });
@@ -70865,25 +70869,25 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       const wrapEnter = wrap3.enter().append("div").attr("class", "heritage-project-panel-wrap");
       const panelEnter = wrapEnter.append("div").attr("class", "heritage-project-panel");
       const header = panelEnter.append("div").attr("class", "header fillL");
-      header.append("h2").text("Research Project");
+      header.append("h2").text("Dataset Export");
       header.append("button").attr("class", "close").attr("title", "Close").on("click", closePanel).call(svgIcon("#iD-icon-close"));
       const body = panelEnter.append("div").attr("class", "body fillL");
       body.append("div").attr("class", "heritage-project-status");
       const active = body.append("div").attr("class", "heritage-project-active");
-      active.append("strong").text("Active project");
+      active.append("strong").text("Active dataset");
       active.append("span");
       const existing = body.append("label").attr("class", "heritage-project-field");
-      existing.append("span").text("Open project");
+      existing.append("span").text("Open dataset");
       existing.append("select").attr("class", "heritage-project-select").on("change", function() {
         const folder = select_default2(this).property("value");
         if (!folder) return;
         withStatus(
           () => heritage.setActiveProject(folder),
-          "Project opened."
+          "Dataset opened."
         );
       });
       [
-        ["Project name", "heritage-project-name", "text", "Timbuktu June 2012"],
+        ["Dataset name", "heritage-project-name", "text", "Timbuktu 2012"],
         ["Imagery timestamp", "heritage-project-timestamp", "text", "2012-06-30 or 2012-06-28/2012-06-30"],
         ["Imagery CRS", "heritage-project-crs", "text", "EPSG:3857"]
       ].forEach(([label, klass, type2, placeholder]) => {
@@ -70903,8 +70907,8 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       waybackButtons.append("button").attr("class", "action button heritage-apply-wayback").text("Use Wayback");
       waybackButtons.append("button").attr("class", "secondary-action button heritage-use-custom").text("Use Custom Tiles");
       const buttons = body.append("div").attr("class", "buttons fillL heritage-project-buttons");
-      buttons.append("button").attr("class", "action button heritage-create-project").text("Create");
-      buttons.append("button").attr("class", "secondary-action button heritage-update-project").text("Update Metadata");
+      buttons.append("button").attr("class", "action button heritage-create-project").text("Create Dataset");
+      buttons.append("button").attr("class", "secondary-action button heritage-update-project").text("Update Dataset");
       buttons.append("button").attr("class", "secondary-action button heritage-save-project").text("Save");
       buttons.append("button").attr("class", "secondary-action button heritage-destroyed").text("Mark Destroyed");
       buttons.append("a").attr("class", "secondary-action button heritage-export-project").attr("target", "_blank").text("Export GeoJSON");
@@ -70912,7 +70916,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       const panel = wrap3.select(".heritage-project-panel");
       panel.select(".heritage-project-status").attr("data-status", statusType).text(statusMessage);
       panel.select(".heritage-project-active span").text(activeProject ? ` ${activeProject.name}` : " none");
-      const options = panel.select(".heritage-project-select").selectAll("option").data([{ folder: "", name: "Select a project" }].concat(projects), (d2) => d2.folder);
+      const options = panel.select(".heritage-project-select").selectAll("option").data([{ folder: "", name: "Select a dataset" }].concat(projects), (d2) => d2.folder);
       options.exit().remove();
       options.enter().append("option").merge(options).attr("value", (d2) => d2.folder).text((d2) => d2.name);
       panel.select(".heritage-project-select").property("value", activeProject ? activeProject.folder : "");
@@ -70934,7 +70938,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         d3_event.preventDefault();
         withStatus(
           () => heritage.createProject(valuesFromPanel(panel)),
-          "Project created."
+          "Dataset created."
         );
       });
       panel.select(".heritage-update-project").classed("disabled", !activeProject).on("click", function(d3_event) {
@@ -70942,7 +70946,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         if (!activeProject) return;
         withStatus(
           () => heritage.updateActiveProject(valuesFromPanel(panel)),
-          "Project metadata updated."
+          "Dataset metadata updated."
         );
       });
       panel.select(".heritage-load-wayback-local").classed("disabled", !activeProject).on("click", function(d3_event) {
@@ -71018,13 +71022,13 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       updateButtonState();
     }
     tool.render = function(selection2) {
-      tooltipBehavior = uiTooltip().placement("bottom").title(() => (selection3) => selection3.text("Open research project")).scrollContainer(context.container().select(".top-toolbar"));
+      tooltipBehavior = uiTooltip().placement("bottom").title(() => (selection3) => selection3.text("Open dataset")).scrollContainer(context.container().select(".top-toolbar"));
       button = selection2.append("button").attr("class", "heritage-project bar-button").on("click", openPanel).call(tooltipBehavior);
       button.call(svgIcon("#iD-icon-data"));
       manager().on("change.heritageProjectTool", updateButtonState).on("saved.heritageProjectTool", (count2) => {
         setStatus(`Saved ${count2} features.`, "success");
       }).on("error.heritageProjectTool", (err) => {
-        setStatus(err.message || "Project action failed", "error");
+        setStatus(err.message || "Dataset action failed", "error");
       });
       updateButtonState();
     };
@@ -71283,7 +71287,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         var heritageProject = context.heritageProject && context.heritageProject();
         if (heritageProject) {
           if (!heritageProject.activeProject()) {
-            context.ui().flash.duration(2500).iconName("#iD-icon-data").label("Create or open a research project first.")();
+            context.ui().flash.duration(2500).iconName("#iD-icon-data").label("Create or open a dataset first.")();
             return;
           }
           _isProjectSaving = true;
@@ -71291,9 +71295,9 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
             button.classed("disabled", true).classed("loading", true);
           }
           heritageProject.saveActiveProject().then(function(featureCollection2) {
-            context.ui().flash.duration(2500).iconName("#iD-icon-save").iconClass("success").label("Saved " + featureCollection2.features.length + " features to the active project.")();
+            context.ui().flash.duration(2500).iconName("#iD-icon-save").iconClass("success").label("Saved " + featureCollection2.features.length + " features to the active dataset.")();
           }).catch(function(err) {
-            context.ui().flash.duration(3e3).iconName("#iD-icon-alert").label(err.message || "Project save failed.")();
+            context.ui().flash.duration(3e3).iconName("#iD-icon-alert").label(err.message || "Dataset save failed.")();
           }).finally(function() {
             _isProjectSaving = false;
             if (button) {

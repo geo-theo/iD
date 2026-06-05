@@ -7,7 +7,7 @@ import serve from 'serve-handler';
 import { buildCSS } from './build_css.js';
 
 const port = 8080;
-const projectsRoot = path.resolve('../projects');
+const projectsRoot = path.resolve('../datasets');
 
 function projectFolderName(name) {
   return String(name || '')
@@ -20,7 +20,7 @@ function projectFolderName(name) {
 
 function assertProjectFolder(folder) {
   if (!/^[a-z0-9][a-z0-9_-]{0,79}$/i.test(folder || '')) {
-    throw Object.assign(new Error('Invalid project folder'), { statusCode: 400 });
+    throw Object.assign(new Error('Invalid dataset folder'), { statusCode: 400 });
   }
   return folder;
 }
@@ -31,7 +31,7 @@ function projectPath(folder, filename = '') {
   const projectRootWithSeparator = path.resolve(projectsRoot, safeFolder) + path.sep;
 
   if (filename && !resolved.startsWith(projectRootWithSeparator)) {
-    throw Object.assign(new Error('Invalid project path'), { statusCode: 400 });
+    throw Object.assign(new Error('Invalid dataset path'), { statusCode: 400 });
   }
   return resolved;
 }
@@ -90,6 +90,8 @@ function emptyFeatureCollection(metadata) {
     metadata: {
       project: metadata.name,
       projectFolder: metadata.folder,
+      dataset: metadata.name,
+      datasetFolder: metadata.folder,
       imageryTimestamp: metadata.imageryTimestamp || '',
       imageryCRS: metadata.crs || '',
       imagerySourceType: metadata.imagerySourceType || '',
@@ -125,7 +127,7 @@ async function createProject(data) {
   const folder = projectFolderName(data.folder || name);
 
   if (!name || !folder) {
-    throw Object.assign(new Error('Project name is required'), { statusCode: 400 });
+    throw Object.assign(new Error('Dataset name is required'), { statusCode: 400 });
   }
 
   const root = projectPath(folder);
@@ -163,7 +165,7 @@ async function updateProject(folder, data) {
   const metadataPath = projectPath(folder, 'metadata.json');
   const existing = await readJSON(metadataPath, null);
   if (!existing) {
-    throw Object.assign(new Error('Project not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Dataset not found'), { statusCode: 404 });
   }
 
   const metadata = {
@@ -205,7 +207,7 @@ async function handleHeritageAPI(request, response) {
 
   if (request.method === 'GET' && resource === 'metadata') {
     const metadata = await readJSON(projectPath(folder, 'metadata.json'), null);
-    if (!metadata) throw Object.assign(new Error('Project not found'), { statusCode: 404 });
+    if (!metadata) throw Object.assign(new Error('Dataset not found'), { statusCode: 404 });
     return sendJSON(response, 200, { project: metadata, projectsRoot });
   }
 
@@ -216,7 +218,7 @@ async function handleHeritageAPI(request, response) {
 
   if (request.method === 'GET' && (resource === 'features' || resource === 'export.geojson')) {
     const metadata = await readJSON(projectPath(folder, 'metadata.json'), null);
-    if (!metadata) throw Object.assign(new Error('Project not found'), { statusCode: 404 });
+    if (!metadata) throw Object.assign(new Error('Dataset not found'), { statusCode: 404 });
     const features = await readJSON(projectPath(folder, 'features.geojson'), emptyFeatureCollection(metadata));
     return resource === 'export.geojson'
       ? sendGeoJSON(response, folder, features)
@@ -225,7 +227,7 @@ async function handleHeritageAPI(request, response) {
 
   if (request.method === 'PUT' && resource === 'features') {
     const metadata = await readJSON(projectPath(folder, 'metadata.json'), null);
-    if (!metadata) throw Object.assign(new Error('Project not found'), { statusCode: 404 });
+    if (!metadata) throw Object.assign(new Error('Dataset not found'), { statusCode: 404 });
 
     const features = await readRequestJSON(request);
     if (features.type !== 'FeatureCollection' || !Array.isArray(features.features)) {
@@ -237,6 +239,8 @@ async function handleHeritageAPI(request, response) {
       ...(features.metadata || {}),
       project: metadata.name,
       projectFolder: metadata.folder,
+      dataset: metadata.name,
+      datasetFolder: metadata.folder,
       imageryTimestamp: metadata.imageryTimestamp || '',
       imageryCRS: metadata.crs || '',
       imagerySourceType: metadata.imagerySourceType || '',
