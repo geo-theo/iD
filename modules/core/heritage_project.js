@@ -1,5 +1,6 @@
 import { dispatch as d3_dispatch } from 'd3-dispatch';
 import { debounce } from 'es-toolkit/compat';
+import { getWaybackItems, getWaybackItemsWithLocalChanges } from '@esri/wayback-core';
 
 import { actionChangeTags } from '../actions/change_tags';
 import { prefs } from './preferences';
@@ -46,6 +47,7 @@ export function coreHeritageProject(context) {
     let _projects = [];
     let _projectsRoot = '';
     let _activeProject = null;
+    let _waybackItems = [];
     let _lastFeatureCount = 0;
     let _lastError = null;
 
@@ -93,7 +95,37 @@ export function coreHeritageProject(context) {
         return {
             imageryLayerID: source.id || '',
             imagerySource: source.imageryUsed && source.imageryUsed() || source.name && source.name() || '',
-            imageryTimestamp
+            imageryTimestamp,
+            waybackReleaseNum: source.releaseNum || _activeProject && _activeProject.waybackReleaseNum || '',
+            imagerySourceType: source.sourceType || _activeProject && _activeProject.imagerySourceType || ''
+        };
+    }
+
+
+    function waybackTemplate(item) {
+        return (item.itemURL || '')
+            .replace(/\{level\}/g, '{z}')
+            .replace(/\{row\}/g, '{y}')
+            .replace(/\{col\}/g, '{x}');
+    }
+
+
+    function waybackSourceData(project) {
+        if (!project || !project.waybackReleaseNum || !project.waybackTileURL) return null;
+
+        return {
+            id: `EsriWayback-${project.waybackReleaseNum}`,
+            type: 'wayback',
+            name: `Esri Wayback ${project.waybackReleaseDate || project.imageryTimestamp || project.waybackReleaseNum}`,
+            template: waybackTemplate({ itemURL: project.waybackTileURL }),
+            releaseNum: Number(project.waybackReleaseNum),
+            releaseDateLabel: project.waybackReleaseDate || project.imageryTimestamp || '',
+            layerIdentifier: project.waybackLayerID || '',
+            startDate: project.waybackReleaseDate || project.imageryTimestamp || '',
+            endDate: project.waybackReleaseDate || project.imageryTimestamp || '',
+            sourceType: 'esri-wayback',
+            tileSize: 256,
+            zoomExtent: [1, 20]
         };
     }
 
@@ -120,6 +152,8 @@ export function coreHeritageProject(context) {
             imageryCRS: project.crs || '',
             imagerySource: imagery.imagerySource,
             imageryLayerID: imagery.imageryLayerID,
+            imagerySourceType: imagery.imagerySourceType,
+            waybackReleaseNum: imagery.waybackReleaseNum,
             idEditorEntityID: entity.id,
             idEditorEntityType: entity.type,
             changeType: change.changeType
@@ -151,6 +185,7 @@ export function coreHeritageProject(context) {
     heritage.projects = () => _projects.slice();
     heritage.projectsRoot = () => _projectsRoot;
     heritage.activeProject = () => _activeProject;
+    heritage.waybackItems = () => _waybackItems.slice();
     heritage.lastFeatureCount = () => _lastFeatureCount;
     heritage.lastError = () => _lastError;
 
@@ -179,7 +214,7 @@ export function coreHeritageProject(context) {
         prefs(ACTIVE_PROJECT_PREF, createdProject.folder);
         await heritage.loadProjects();
         activateProject(_projects.find(project => project.folder === createdProject.folder) || createdProject);
-        heritage.applyCustomImagery();
+        heritage.applyProjectImagery();
         dispatch.call('change', heritage);
         return _activeProject;
     };
@@ -188,7 +223,7 @@ export function coreHeritageProject(context) {
     heritage.setActiveProject = async function(folder) {
         const result = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(folder)}/metadata`);
         activateProject(result.project);
-        heritage.applyCustomImagery();
+        heritage.applyProjectImagery();
         dispatch.call('change', heritage);
         return _activeProject;
     };
@@ -208,15 +243,25 @@ export function coreHeritageProject(context) {
         const updatedProject = result.project;
         activateProject(updatedProject);
         _projects = _projects.map(project => project.folder === updatedProject.folder ? updatedProject : project);
-        heritage.applyCustomImagery();
+        heritage.applyProjectImagery();
         dispatch.call('change', heritage);
         return _activeProject;
     };
 
 
+    heritage.applyProjectImagery = function() {
+        if (!_activeProject) return heritage;
+
+        if (_activeProject.imagerySourceType === 'esri-wayback') {
+            return heritage.applyWaybackImagery();
+        }
+
+        return heritage.applyCustomImagery();
+    };
+
+
     heritage.applyCustomImagery = function() {
         if (!_activeProject || !_activeProject.customTileURL) return heritage;
-
         const background = context.background();
         const customSource = background && background.findSource && background.findSource('custom');
         if (!customSource) return heritage;
@@ -226,6 +271,69 @@ export function coreHeritageProject(context) {
         prefs('background-last-used', 'custom');
         background.baseLayerSource(customSource);
         return heritage;
+    };
+
+
+    heritage.applyWaybackImagery = function() {
+        const data = waybackSourceData(_activeProject);
+        if (!data) return heritage;
+
+        const background = context.background();
+        if (!background || !background.addSource) return heritage;
+
+        const source = background.addSource(data);
+        if (!source) return heritage;
+
+        prefs('background-last-used', source.id);
+        background.baseLayerSource(source);
+        return heritage;
+    };
+
+
+    heritage.loadWaybackItems = async function(options = {}) {
+        const map = context.map();
+        const center = options.center || map.center();
+        const zoom = Math.max(1, Math.min(20, Math.round(options.zoom || map.zoom() || 15)));
+        const point = {
+            longitude: center[0],
+            latitude: center[1]
+        };
+
+        _waybackItems = options.allVersions ?
+            await getWaybackItems() :
+            await getWaybackItemsWithLocalChanges(point, zoom);
+
+        dispatch.call('change', heritage);
+        return _waybackItems;
+    };
+
+
+    heritage.selectWaybackRelease = async function(releaseNum) {
+        if (!_activeProject) {
+            throw new Error('Create or open a project first.');
+        }
+
+        let item = _waybackItems.find(d => String(d.releaseNum) === String(releaseNum));
+        if (!item) {
+            const allItems = await getWaybackItems();
+            item = allItems.find(d => String(d.releaseNum) === String(releaseNum));
+        }
+        if (!item) {
+            throw new Error('Wayback release not found.');
+        }
+
+        const project = await heritage.updateActiveProject({
+            imagerySourceType: 'esri-wayback',
+            imageryTimestamp: item.releaseDateLabel,
+            crs: 'EPSG:3857',
+            waybackReleaseNum: item.releaseNum,
+            waybackReleaseDate: item.releaseDateLabel,
+            waybackLayerID: item.layerIdentifier,
+            waybackTileURL: item.itemURL
+        });
+
+        heritage.applyWaybackImagery();
+        return project;
     };
 
 
@@ -250,6 +358,11 @@ export function coreHeritageProject(context) {
                 projectFolder: project.folder,
                 imageryTimestamp: project.imageryTimestamp || '',
                 imageryCRS: project.crs || '',
+                imagerySourceType: project.imagerySourceType || '',
+                waybackReleaseNum: project.waybackReleaseNum || '',
+                waybackReleaseDate: project.waybackReleaseDate || '',
+                waybackLayerID: project.waybackLayerID || '',
+                waybackTileURL: project.waybackTileURL || '',
                 customTileURL: project.customTileURL || '',
                 generatedAt: new Date().toISOString()
             },

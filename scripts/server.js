@@ -92,6 +92,11 @@ function emptyFeatureCollection(metadata) {
       projectFolder: metadata.folder,
       imageryTimestamp: metadata.imageryTimestamp || '',
       imageryCRS: metadata.crs || '',
+      imagerySourceType: metadata.imagerySourceType || '',
+      waybackReleaseNum: metadata.waybackReleaseNum || '',
+      waybackReleaseDate: metadata.waybackReleaseDate || '',
+      waybackLayerID: metadata.waybackLayerID || '',
+      waybackTileURL: metadata.waybackTileURL || '',
       customTileURL: metadata.customTileURL || ''
     },
     features: []
@@ -131,8 +136,13 @@ async function createProject(data) {
   const metadata = {
     name,
     folder,
+    imagerySourceType: data.imagerySourceType || existing?.imagerySourceType || 'custom',
     imageryTimestamp: data.imageryTimestamp || existing?.imageryTimestamp || '',
     crs: data.crs || existing?.crs || 'EPSG:3857',
+    waybackReleaseNum: data.waybackReleaseNum || existing?.waybackReleaseNum || '',
+    waybackReleaseDate: data.waybackReleaseDate || existing?.waybackReleaseDate || '',
+    waybackLayerID: data.waybackLayerID || existing?.waybackLayerID || '',
+    waybackTileURL: data.waybackTileURL || existing?.waybackTileURL || '',
     customTileURL: data.customTileURL || existing?.customTileURL || '',
     createdAt: existing?.createdAt || now,
     updatedAt: now
@@ -159,8 +169,13 @@ async function updateProject(folder, data) {
   const metadata = {
     ...existing,
     name: data.name || existing.name,
+    imagerySourceType: data.imagerySourceType ?? existing.imagerySourceType ?? 'custom',
     imageryTimestamp: data.imageryTimestamp ?? existing.imageryTimestamp ?? '',
     crs: data.crs ?? existing.crs ?? 'EPSG:3857',
+    waybackReleaseNum: data.waybackReleaseNum ?? existing.waybackReleaseNum ?? '',
+    waybackReleaseDate: data.waybackReleaseDate ?? existing.waybackReleaseDate ?? '',
+    waybackLayerID: data.waybackLayerID ?? existing.waybackLayerID ?? '',
+    waybackTileURL: data.waybackTileURL ?? existing.waybackTileURL ?? '',
     customTileURL: data.customTileURL ?? existing.customTileURL ?? '',
     updatedAt: new Date().toISOString()
   };
@@ -224,6 +239,11 @@ async function handleHeritageAPI(request, response) {
       projectFolder: metadata.folder,
       imageryTimestamp: metadata.imageryTimestamp || '',
       imageryCRS: metadata.crs || '',
+      imagerySourceType: metadata.imagerySourceType || '',
+      waybackReleaseNum: metadata.waybackReleaseNum || '',
+      waybackReleaseDate: metadata.waybackReleaseDate || '',
+      waybackLayerID: metadata.waybackLayerID || '',
+      waybackTileURL: metadata.waybackTileURL || '',
       customTileURL: metadata.customTileURL || '',
       updatedAt: new Date().toISOString()
     };

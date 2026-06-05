@@ -65,15 +65,7 @@ export function rendererBackground(context) {
 
 
         // Instantiate `rendererBackgroundSource` objects for each source
-        _imageryIndex.backgrounds = sources.map(source => {
-          if (source.type === 'bing') {
-            return rendererBackgroundSource.Bing(source, dispatch);
-          } else if (/^EsriWorldImagery/.test(source.id)) {
-            return rendererBackgroundSource.Esri(source);
-          } else {
-            return rendererBackgroundSource(source);
-          }
-        });
+        _imageryIndex.backgrounds = sources.map(makeBackgroundSource);
 
         // Add 'None'
         _imageryIndex.backgrounds.unshift(rendererBackgroundSource.None());
@@ -85,6 +77,18 @@ export function rendererBackground(context) {
 
         return _imageryIndex;
       });
+  }
+
+  function makeBackgroundSource(source) {
+    if (source.type === 'bing') {
+      return rendererBackgroundSource.Bing(source, dispatch);
+    } else if (source.type === 'wayback') {
+      return rendererBackgroundSource.Wayback(source);
+    } else if (/^EsriWorldImagery/.test(source.id)) {
+      return rendererBackgroundSource.Esri(source);
+    } else {
+      return rendererBackgroundSource(source);
+    }
   }
 
 
@@ -330,6 +334,21 @@ export function rendererBackground(context) {
   background.findSource = (id) => {
     if (!id || !_imageryIndex) return null;   // called before init()?
     return _imageryIndex.backgrounds.find(d => d.id && d.id === id);
+  };
+
+  background.addSource = (sourceData) => {
+    if (!sourceData || !sourceData.id || !_imageryIndex) return null;
+
+    const existingIndex = _imageryIndex.backgrounds.findIndex(d => d.id === sourceData.id);
+    const source = makeBackgroundSource(sourceData);
+
+    if (existingIndex !== -1) {
+      _imageryIndex.backgrounds[existingIndex] = source;
+    } else {
+      _imageryIndex.backgrounds.push(source);
+    }
+
+    return source;
   };
 
 

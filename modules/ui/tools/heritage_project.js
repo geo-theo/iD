@@ -60,8 +60,10 @@ export function uiToolHeritageProject(context) {
 
 
     function valuesFromPanel(panel) {
+        const activeProject = manager().activeProject();
         return {
             name: panel.select('.heritage-project-name').property('value').trim(),
+            imagerySourceType: activeProject && activeProject.imagerySourceType || 'custom',
             imageryTimestamp: panel.select('.heritage-project-timestamp').property('value').trim(),
             crs: panel.select('.heritage-project-crs').property('value').trim() || 'EPSG:3857',
             customTileURL: panel.select('.heritage-project-tile-url').property('value').trim()
@@ -97,6 +99,7 @@ export function uiToolHeritageProject(context) {
         const heritage = manager();
         const activeProject = heritage.activeProject();
         const projects = heritage.projects();
+        const waybackItems = heritage.waybackItems();
 
         let wrap = context.container()
             .selectAll('.heritage-project-panel-wrap')
@@ -198,6 +201,42 @@ export function uiToolHeritageProject(context) {
             .attr('rows', 3)
             .attr('placeholder', 'https://tiles.example.org/{z}/{x}/{y}.png');
 
+        const waybackField = body
+            .append('label')
+            .attr('class', 'heritage-project-field');
+
+        waybackField
+            .append('span')
+            .text('Esri Wayback release');
+
+        waybackField
+            .append('select')
+            .attr('class', 'heritage-wayback-select');
+
+        const waybackButtons = body
+            .append('div')
+            .attr('class', 'buttons fillL heritage-project-buttons heritage-wayback-buttons');
+
+        waybackButtons
+            .append('button')
+            .attr('class', 'secondary-action button heritage-load-wayback-local')
+            .text('Load Local Wayback Dates');
+
+        waybackButtons
+            .append('button')
+            .attr('class', 'secondary-action button heritage-load-wayback-all')
+            .text('Load All Wayback Dates');
+
+        waybackButtons
+            .append('button')
+            .attr('class', 'action button heritage-apply-wayback')
+            .text('Use Wayback');
+
+        waybackButtons
+            .append('button')
+            .attr('class', 'secondary-action button heritage-use-custom')
+            .text('Use Custom Tiles');
+
         const buttons = body
             .append('div')
             .attr('class', 'buttons fillL heritage-project-buttons');
@@ -269,6 +308,28 @@ export function uiToolHeritageProject(context) {
         panel.select('.heritage-project-tile-url')
             .property('value', activeProject ? activeProject.customTileURL || '' : '');
 
+        const waybackOptions = panel.select('.heritage-wayback-select')
+            .selectAll('option')
+            .data(
+                [{ releaseNum: '', releaseDateLabel: waybackItems.length ? 'Select a Wayback release' : 'Load Wayback dates first' }].concat(waybackItems),
+                d => d.releaseNum
+            );
+
+        waybackOptions.exit()
+            .remove();
+
+        waybackOptions.enter()
+            .append('option')
+            .merge(waybackOptions)
+            .attr('value', d => d.releaseNum)
+            .text(d => {
+                if (!d.releaseNum) return d.releaseDateLabel;
+                return `${d.releaseDateLabel} (${d.layerIdentifier || d.releaseNum})`;
+            });
+
+        panel.select('.heritage-wayback-select')
+            .property('value', activeProject && activeProject.waybackReleaseNum ? activeProject.waybackReleaseNum : '');
+
         panel.select('.heritage-create-project')
             .on('click', function(d3_event) {
                 d3_event.preventDefault();
@@ -286,6 +347,68 @@ export function uiToolHeritageProject(context) {
                 withStatus(
                     () => heritage.updateActiveProject(valuesFromPanel(panel)),
                     'Project metadata updated.'
+                );
+            });
+
+        panel.select('.heritage-load-wayback-local')
+            .classed('disabled', !activeProject)
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                if (!activeProject) return;
+                setStatus('Loading Wayback dates near the map center...', '');
+                withStatus(
+                    () => heritage.loadWaybackItems(),
+                    items => `Loaded ${items.length} local Wayback releases.`
+                );
+            });
+
+        panel.select('.heritage-load-wayback-all')
+            .classed('disabled', !activeProject)
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                if (!activeProject) return;
+                setStatus('Loading all Wayback dates...', '');
+                withStatus(
+                    () => heritage.loadWaybackItems({ allVersions: true }),
+                    items => `Loaded ${items.length} Wayback releases.`
+                );
+            });
+
+        panel.select('.heritage-apply-wayback')
+            .classed('disabled', !activeProject || !waybackItems.length)
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                if (!activeProject) return;
+
+                const releaseNum = panel.select('.heritage-wayback-select').property('value');
+                if (!releaseNum) {
+                    setStatus('Choose a Wayback release first.', 'error');
+                    return;
+                }
+
+                withStatus(
+                    () => heritage.selectWaybackRelease(releaseNum),
+                    project => `Using Esri Wayback ${project.waybackReleaseDate || project.imageryTimestamp}.`
+                );
+            });
+
+        panel.select('.heritage-use-custom')
+            .classed('disabled', !activeProject)
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                if (!activeProject) return;
+
+                const values = valuesFromPanel(panel);
+                withStatus(
+                    () => heritage.updateActiveProject({
+                        ...values,
+                        imagerySourceType: 'custom',
+                        waybackReleaseNum: '',
+                        waybackReleaseDate: '',
+                        waybackLayerID: '',
+                        waybackTileURL: ''
+                    }),
+                    'Using custom tile/WMS imagery.'
                 );
             });
 

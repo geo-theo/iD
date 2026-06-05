@@ -1,5 +1,6 @@
 import { geoArea as d3_geoArea, geoMercatorRaw as d3_geoMercatorRaw } from 'd3-geo';
 import { json as d3_json } from 'd3-fetch';
+import { getMetadata as getWaybackMetadata } from '@esri/wayback-core';
 
 import { t, localizer } from '../core/localizer';
 import { geoExtent, geoSphericalDistance } from '../geo';
@@ -597,4 +598,76 @@ rendererBackgroundSource.Custom = function(template) {
 
 
     return source;
+};
+
+
+rendererBackgroundSource.Wayback = function(data) {
+    var wayback = rendererBackgroundSource(data);
+    var releaseNum = data.releaseNum;
+    var releaseDateLabel = data.releaseDateLabel || data.startDate;
+    var cache = {};
+    var inflight = {};
+
+    wayback.name = function() {
+        return data.name || `Esri Wayback ${releaseDateLabel || releaseNum}`;
+    };
+
+    wayback.label = function() {
+        return selection => selection.text(wayback.name());
+    };
+
+    wayback.imageryUsed = function() {
+        return `Esri Wayback${releaseDateLabel ? ` ${releaseDateLabel}` : ''}`;
+    };
+
+    wayback.getMetadata = function(center, tileCoord, callback) {
+        var tileID = tileCoord.slice(0, 3).join('/');
+        var zoom = Math.min(tileCoord[2], wayback.zoomExtent[1]);
+
+        if (!releaseNum) {
+            return callback(null, {
+                vintage: {
+                    start: localeDateString(releaseDateLabel),
+                    end: localeDateString(releaseDateLabel),
+                    range: localeDateString(releaseDateLabel)
+                }
+            });
+        }
+
+        if (inflight[tileID]) return;
+        if (!cache[tileID]) cache[tileID] = {};
+        if (cache[tileID].metadata) return callback(null, cache[tileID].metadata);
+
+        inflight[tileID] = true;
+
+        getWaybackMetadata({
+            longitude: center[0],
+            latitude: center[1]
+        }, zoom, releaseNum)
+            .then(result => {
+                delete inflight[tileID];
+
+                var captureDate = result && result.date ? localeDateString(new Date(result.date)) : localeDateString(releaseDateLabel);
+                var metadata = {
+                    vintage: {
+                        start: captureDate,
+                        end: captureDate,
+                        range: captureDate
+                    },
+                    source: result && result.source || '',
+                    description: result && result.provider || '',
+                    resolution: result && result.resolution ? `${result.resolution} m` : '',
+                    accuracy: result && result.accuracy ? `${result.accuracy} m` : ''
+                };
+
+                cache[tileID].metadata = metadata;
+                if (callback) callback(null, metadata);
+            })
+            .catch(err => {
+                delete inflight[tileID];
+                if (callback) callback(err.message);
+            });
+    };
+
+    return wayback;
 };

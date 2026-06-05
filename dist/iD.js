@@ -37958,6 +37958,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
           translations: "node scripts/update_locales.js"
         },
         dependencies: {
+          "@esri/wayback-core": "^1.0.10",
           "@mapbox/geojson-area": "^0.2.2",
           "@mapbox/sexagesimal": "1.2.0",
           "@mapbox/vector-tile": "^2.0.4",
@@ -39102,6 +39103,590 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     }
   });
 
+  // node_modules/@esri/wayback-core/dist/config/index.js
+  var require_config = __commonJS({
+    "node_modules/@esri/wayback-core/dist/config/index.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.getWaybackSubDomains = exports.getWaybackConfigFileURL = exports.getTileImageURL = exports.getWaybackServiceBaseURL = exports.setCustomWaybackConfig = exports.customWaybackConfigData = exports.WAYBACK_SERVICE_URL_TEMPLATE = exports.WAYBACK_SERVICE_SUB_DOMAINS_PROD = void 0;
+      exports.WAYBACK_SERVICE_SUB_DOMAINS_PROD = [
+        "wayback",
+        "wayback-a",
+        "wayback-b"
+      ];
+      exports.WAYBACK_SERVICE_URL_TEMPLATE = "https://{subDomain}.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer";
+      var WAYBACK_CONFIG_FILE_PROD = "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json";
+      var customSubDomains = null;
+      var customWaybackConfigFileURL = null;
+      exports.customWaybackConfigData = null;
+      var setCustomWaybackConfig = (params) => {
+        customSubDomains = params.subDomains || null;
+        customWaybackConfigFileURL = params.waybackConfigFileURL || null;
+        exports.customWaybackConfigData = params.waybackConfigData || null;
+      };
+      exports.setCustomWaybackConfig = setCustomWaybackConfig;
+      var getRandomSubDomain = () => {
+        const subDomains = customSubDomains && customSubDomains.length > 0 ? customSubDomains : exports.WAYBACK_SERVICE_SUB_DOMAINS_PROD;
+        const randomIdx = Math.floor(Math.random() * subDomains.length);
+        const subDomain = subDomains[randomIdx];
+        return subDomain;
+      };
+      var getWaybackServiceBaseURL = () => {
+        const subDomain = getRandomSubDomain();
+        return exports.WAYBACK_SERVICE_URL_TEMPLATE.replace("{subDomain}", subDomain);
+      };
+      exports.getWaybackServiceBaseURL = getWaybackServiceBaseURL;
+      var getTileImageURL = ({ urlTemplate = "", column = null, row = null, level = null }) => {
+        const url = urlTemplate.replace("{level}", level.toString()).replace("{row}", row.toString()).replace("{col}", column.toString());
+        const shouldReplaceSubDomain = url.startsWith("https://wayback.maptiles.arcgis.com");
+        if (!shouldReplaceSubDomain) {
+          return url;
+        }
+        const subDomainToBeReplaced = "wayback";
+        const subDomain = getRandomSubDomain();
+        return url.replace(subDomainToBeReplaced, subDomain);
+      };
+      exports.getTileImageURL = getTileImageURL;
+      var getWaybackConfigFileURL = () => {
+        return customWaybackConfigFileURL ? customWaybackConfigFileURL : WAYBACK_CONFIG_FILE_PROD;
+      };
+      exports.getWaybackConfigFileURL = getWaybackConfigFileURL;
+      var getWaybackSubDomains = () => {
+        return customSubDomains && customSubDomains.length > 0 ? customSubDomains : exports.WAYBACK_SERVICE_SUB_DOMAINS_PROD;
+      };
+      exports.getWaybackSubDomains = getWaybackSubDomains;
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/helpers/geometry.js
+  var require_geometry = __commonJS({
+    "node_modules/@esri/wayback-core/dist/helpers/geometry.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.tile2lat = exports.tile2Long = exports.lat2tile = exports.long2tile = void 0;
+      var long2tile = (lon, zoom) => {
+        return Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+      };
+      exports.long2tile = long2tile;
+      var lat2tile = (lat, zoom) => {
+        return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+      };
+      exports.lat2tile = lat2tile;
+      var tile2Long = (x3, z3) => {
+        return x3 / Math.pow(2, z3) * 360 - 180;
+      };
+      exports.tile2Long = tile2Long;
+      var tile2lat = (y3, z3) => {
+        const n3 = Math.PI - 2 * Math.PI * y3 / Math.pow(2, z3);
+        return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n3) - Math.exp(-n3)));
+      };
+      exports.tile2lat = tile2lat;
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/helpers/unit8array.js
+  var require_unit8array = __commonJS({
+    "node_modules/@esri/wayback-core/dist/helpers/unit8array.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.areUint8ArraysEqual = void 0;
+      var areUint8ArraysEqual = (arr1, arr2) => {
+        if (arr1.length !== arr2.length) {
+          return false;
+        }
+        for (let i3 = arr1.length - 1; i3 >= 0; i3--) {
+          if (arr1[i3] !== arr2[i3]) {
+            return false;
+          }
+        }
+        return true;
+      };
+      exports.areUint8ArraysEqual = areUint8ArraysEqual;
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/wayback-items/helpers.js
+  var require_helpers = __commonJS({
+    "node_modules/@esri/wayback-core/dist/wayback-items/helpers.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.extractDateFromWaybackItemTitle = void 0;
+      var convertDateFromWaybackItemTitle = (dateString = "") => {
+        if (!dateString) {
+          return 0;
+        }
+        const dateParts = dateString.split("-").filter((part) => part !== "");
+        if (dateParts.length !== 3) {
+          return 0;
+        }
+        const year = +dateParts[0];
+        const mon = +dateParts[1] - 1;
+        const day = +dateParts[2];
+        return new Date(year, mon, day).getTime();
+      };
+      var extractDateFromWaybackItemTitle = (waybackItemTitle = "") => {
+        if (!waybackItemTitle || waybackItemTitle.trim() === "") {
+          return {
+            releaseDateLabel: "",
+            releaseDatetime: 0
+          };
+        }
+        const regexpYYYYMMDD = /\d{4}-\d{2}-\d{2}/g;
+        const matched = waybackItemTitle.match(regexpYYYYMMDD);
+        if (!matched || matched.length === 0) {
+          return {
+            releaseDateLabel: "",
+            releaseDatetime: 0
+          };
+        }
+        const dateString = matched[0];
+        const releaseDatetime = convertDateFromWaybackItemTitle(dateString);
+        return {
+          releaseDateLabel: dateString,
+          releaseDatetime
+        };
+      };
+      exports.extractDateFromWaybackItemTitle = extractDateFromWaybackItemTitle;
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/wayback-items/waybackItems.js
+  var require_waybackItems = __commonJS({
+    "node_modules/@esri/wayback-core/dist/wayback-items/waybackItems.js"(exports) {
+      "use strict";
+      var __awaiter = exports && exports.__awaiter || function(thisArg, _arguments, P3, generator) {
+        function adopt(value) {
+          return value instanceof P3 ? value : new P3(function(resolve) {
+            resolve(value);
+          });
+        }
+        return new (P3 || (P3 = Promise))(function(resolve, reject2) {
+          function fulfilled(value) {
+            try {
+              step(generator.next(value));
+            } catch (e3) {
+              reject2(e3);
+            }
+          }
+          function rejected(value) {
+            try {
+              step(generator["throw"](value));
+            } catch (e3) {
+              reject2(e3);
+            }
+          }
+          function step(result2) {
+            result2.done ? resolve(result2.value) : adopt(result2.value).then(fulfilled, rejected);
+          }
+          step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+      };
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.getWaybackItemByReleaseNumber = exports.getWaybackItems = exports.isValidWaybackItem = exports.getWaybackConfigData = void 0;
+      var config_1 = require_config();
+      var helpers_1 = require_helpers();
+      var waybackconfig = null;
+      var waybackItems = null;
+      var waybackItemByReleaseNumber = null;
+      var getWaybackConfigData = () => __awaiter(void 0, void 0, void 0, function* () {
+        if (waybackconfig) {
+          return waybackconfig;
+        }
+        if (config_1.customWaybackConfigData) {
+          waybackconfig = config_1.customWaybackConfigData;
+          return waybackconfig;
+        }
+        const url = (0, config_1.getWaybackConfigFileURL)();
+        const res = yield fetch(url);
+        if (!res.ok) {
+          throw new Error("failed to fetch wayback config file");
+        }
+        waybackconfig = yield res.json();
+        return waybackconfig;
+      });
+      exports.getWaybackConfigData = getWaybackConfigData;
+      var isValidWaybackItem = (item) => {
+        if (!item || typeof item !== "object") {
+          return false;
+        }
+        return typeof item.itemTitle === "string" && typeof item.itemID === "string" && typeof item.itemURL === "string" && typeof item.metadataLayerUrl === "string" && typeof item.metadataLayerItemID === "string" && typeof item.layerIdentifier === "string";
+      };
+      exports.isValidWaybackItem = isValidWaybackItem;
+      var getWaybackItems2 = () => __awaiter(void 0, void 0, void 0, function* () {
+        if (waybackItems) {
+          return waybackItems;
+        }
+        const waybackConfig = yield (0, exports.getWaybackConfigData)();
+        waybackItems = Object.keys(waybackConfig).filter((key) => !isNaN(+key)).map((key) => {
+          const releaseNum = +key;
+          const waybackconfigItem = waybackconfig[releaseNum];
+          if (!(0, exports.isValidWaybackItem)(waybackconfigItem)) {
+            return null;
+          }
+          const { itemTitle } = waybackconfigItem || {};
+          const { releaseDateLabel, releaseDatetime } = (0, helpers_1.extractDateFromWaybackItemTitle)(itemTitle) || {};
+          if (!releaseDateLabel || releaseDatetime === 0) {
+            return null;
+          }
+          const waybackItem = Object.assign({
+            releaseNum,
+            releaseDateLabel,
+            releaseDatetime
+          }, waybackconfigItem);
+          return waybackItem;
+        });
+        waybackItems = waybackItems.filter((item) => item !== null).sort((a2, b11) => {
+          return b11.releaseDatetime - a2.releaseDatetime;
+        });
+        return waybackItems;
+      });
+      exports.getWaybackItems = getWaybackItems2;
+      var getWaybackItemByReleaseNumber = (releaseNumber) => __awaiter(void 0, void 0, void 0, function* () {
+        if (!waybackItemByReleaseNumber) {
+          const waybackItems2 = yield (0, exports.getWaybackItems)();
+          waybackItemByReleaseNumber = /* @__PURE__ */ new Map();
+          for (const waybackItem of waybackItems2) {
+            waybackItemByReleaseNumber.set(waybackItem.releaseNum, waybackItem);
+          }
+        }
+        return waybackItemByReleaseNumber.get(releaseNumber);
+      });
+      exports.getWaybackItemByReleaseNumber = getWaybackItemByReleaseNumber;
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/change-detector/index.js
+  var require_change_detector = __commonJS({
+    "node_modules/@esri/wayback-core/dist/change-detector/index.js"(exports) {
+      "use strict";
+      var __awaiter = exports && exports.__awaiter || function(thisArg, _arguments, P3, generator) {
+        function adopt(value) {
+          return value instanceof P3 ? value : new P3(function(resolve) {
+            resolve(value);
+          });
+        }
+        return new (P3 || (P3 = Promise))(function(resolve, reject2) {
+          function fulfilled(value) {
+            try {
+              step(generator.next(value));
+            } catch (e3) {
+              reject2(e3);
+            }
+          }
+          function rejected(value) {
+            try {
+              step(generator["throw"](value));
+            } catch (e3) {
+              reject2(e3);
+            }
+          }
+          function step(result2) {
+            result2.done ? resolve(result2.value) : adopt(result2.value).then(fulfilled, rejected);
+          }
+          step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+      };
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.getWaybackItemsWithLocalChanges = void 0;
+      var config_1 = require_config();
+      var geometry_1 = require_geometry();
+      var unit8array_1 = require_unit8array();
+      var waybackItems_1 = require_waybackItems();
+      var wabackItemsIndicemMap = null;
+      var getWaybackItemsWithLocalChanges2 = (point3, zoom, abortController) => __awaiter(void 0, void 0, void 0, function* () {
+        const { longitude: longitude2, latitude } = point3;
+        const level = +zoom.toFixed(0);
+        const column = (0, geometry_1.long2tile)(longitude2, level);
+        const row = (0, geometry_1.lat2tile)(latitude, level);
+        const releaseNums = yield getReleaseNumOfWaybackItemsWithLocalChanges({
+          column,
+          row,
+          level
+        });
+        const candidates = [];
+        for (const releaseNumber of releaseNums) {
+          const { itemURL } = yield (0, waybackItems_1.getWaybackItemByReleaseNumber)(releaseNumber);
+          const candidate = {
+            releaseNumber,
+            url: (0, config_1.getTileImageURL)({
+              urlTemplate: itemURL,
+              column,
+              row,
+              level
+            })
+          };
+          candidates.push(candidate);
+        }
+        const rNumsNoDuplicates = yield removeDuplicates(candidates);
+        const output = [];
+        for (const releaseNumber of rNumsNoDuplicates) {
+          const waybackItem = yield (0, waybackItems_1.getWaybackItemByReleaseNumber)(releaseNumber);
+          output.push(waybackItem);
+        }
+        return new Promise((resolve, reject2) => {
+          if (abortController && (abortController === null || abortController === void 0 ? void 0 : abortController.signal.aborted)) {
+            reject2("Task aborterd: getWaybackItemsWithLocalChanges has been aborterd by the user.");
+            return;
+          }
+          resolve(output);
+        });
+      });
+      exports.getWaybackItemsWithLocalChanges = getWaybackItemsWithLocalChanges2;
+      var getPreviouseReleaseNumber = (releaseNumber) => __awaiter(void 0, void 0, void 0, function* () {
+        const waybackItems = yield (0, waybackItems_1.getWaybackItems)();
+        if (!wabackItemsIndicemMap) {
+          wabackItemsIndicemMap = /* @__PURE__ */ new Map();
+          waybackItems.forEach((item, index2) => {
+            wabackItemsIndicemMap.set(item.releaseNum, index2);
+          });
+        }
+        const indexOfWaybackItem = wabackItemsIndicemMap.get(releaseNumber);
+        const previousItem = waybackItems[indexOfWaybackItem + 1] ? waybackItems[indexOfWaybackItem + 1] : null;
+        return (previousItem === null || previousItem === void 0 ? void 0 : previousItem.releaseNum) || null;
+      });
+      var getReleaseNumOfWaybackItemsWithLocalChanges = ({ column = null, row = null, level = null }) => __awaiter(void 0, void 0, void 0, function* () {
+        const waybackItems = yield (0, waybackItems_1.getWaybackItems)();
+        return new Promise((resolve, reject2) => {
+          const results = [];
+          const mostRecentRelease = waybackItems[0].releaseNum;
+          const waybackMapServerBaseUrl = (0, config_1.getWaybackServiceBaseURL)();
+          const tilemapRequest = (releaseNumber) => __awaiter(void 0, void 0, void 0, function* () {
+            try {
+              const requestUrl = `${waybackMapServerBaseUrl}/tilemap/${releaseNumber}/${level}/${row}/${column}`;
+              const response = yield fetch(requestUrl);
+              const tilemapResponse = yield response.json();
+              const lastReleaseCameWithLocalChange = tilemapResponse.select && tilemapResponse.select[0] ? +tilemapResponse.select[0] : releaseNumber;
+              if (tilemapResponse.data[0]) {
+                results.push(lastReleaseCameWithLocalChange);
+              }
+              const releaseNumOfNextWaybackItemToCheck = tilemapResponse.data[0] ? yield getPreviouseReleaseNumber(lastReleaseCameWithLocalChange) : null;
+              if (releaseNumOfNextWaybackItemToCheck) {
+                tilemapRequest(releaseNumOfNextWaybackItemToCheck);
+              } else {
+                resolve(results);
+              }
+            } catch (err) {
+              console.error(err);
+              reject2(null);
+            }
+          });
+          tilemapRequest(mostRecentRelease);
+        });
+      });
+      var removeDuplicates = (candidates) => __awaiter(void 0, void 0, void 0, function* () {
+        if (!candidates.length) {
+          return [];
+        }
+        const imageDataRequests = candidates.reverse().map((candidate) => {
+          return getImageData2(candidate.url, candidate.releaseNumber);
+        });
+        const uniqueImageData = [];
+        try {
+          const imageDataResults = yield Promise.all(imageDataRequests);
+          for (const currentItem of imageDataResults) {
+            const previousItem = uniqueImageData[uniqueImageData.length - 1];
+            if (previousItem && (0, unit8array_1.areUint8ArraysEqual)(previousItem.data, currentItem.data)) {
+              continue;
+            }
+            uniqueImageData.push(currentItem);
+          }
+        } catch (err) {
+          console.error("failed to fetch all image data uri", err);
+        }
+        return uniqueImageData.map((d2) => d2.releaseNumber);
+      });
+      var getImageData2 = (imageUrl, releaseNumber) => __awaiter(void 0, void 0, void 0, function* () {
+        return new Promise((resolve, reject2) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("GET", imageUrl, true);
+          xhr.responseType = "arraybuffer";
+          xhr.onload = function() {
+            if (this.status == 200) {
+              const data = new Uint8Array(this.response);
+              resolve({
+                releaseNumber,
+                data
+              });
+            } else {
+              reject2();
+            }
+          };
+          xhr.send();
+        });
+      });
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/metadata/config.js
+  var require_config2 = __commonJS({
+    "node_modules/@esri/wayback-core/dist/metadata/config.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.METADATA_FIELD_NAMES = void 0;
+      exports.METADATA_FIELD_NAMES = {
+        SOURCE_DATE: "SRC_DATE2",
+        SOURCE_PROVIDER: "NICE_DESC",
+        SOURCE_NAME: "SRC_DESC",
+        RESOLUTION: "SAMP_RES",
+        ACCURACY: "SRC_ACC"
+      };
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/metadata/index.js
+  var require_metadata = __commonJS({
+    "node_modules/@esri/wayback-core/dist/metadata/index.js"(exports) {
+      "use strict";
+      var __awaiter = exports && exports.__awaiter || function(thisArg, _arguments, P3, generator) {
+        function adopt(value) {
+          return value instanceof P3 ? value : new P3(function(resolve) {
+            resolve(value);
+          });
+        }
+        return new (P3 || (P3 = Promise))(function(resolve, reject2) {
+          function fulfilled(value) {
+            try {
+              step(generator.next(value));
+            } catch (e3) {
+              reject2(e3);
+            }
+          }
+          function rejected(value) {
+            try {
+              step(generator["throw"](value));
+            } catch (e3) {
+              reject2(e3);
+            }
+          }
+          function step(result2) {
+            result2.done ? resolve(result2.value) : adopt(result2.value).then(fulfilled, rejected);
+          }
+          step((generator = generator.apply(thisArg, _arguments || [])).next());
+        });
+      };
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.getMetadata = void 0;
+      var waybackItems_1 = require_waybackItems();
+      var config_1 = require_config2();
+      var MAX_ZOOM = 23;
+      var MIN_ZOOM = 10;
+      var { SOURCE_DATE, SOURCE_PROVIDER, SOURCE_NAME, RESOLUTION, ACCURACY } = config_1.METADATA_FIELD_NAMES;
+      var getMetadata = (point3, zoom, releaseNumber) => __awaiter(void 0, void 0, void 0, function* () {
+        if (!point3 || !zoom || !releaseNumber) {
+          throw new Error("Failed to query metadata because the required parameters are missing");
+        }
+        const { longitude: longitude2, latitude } = point3;
+        const queryParams = new URLSearchParams({
+          f: "json",
+          where: "1=1",
+          outFields: [
+            SOURCE_DATE,
+            SOURCE_PROVIDER,
+            SOURCE_NAME,
+            RESOLUTION,
+            ACCURACY
+          ].join(","),
+          geometry: JSON.stringify({
+            spatialReference: { wkid: 4326 },
+            x: longitude2,
+            y: latitude
+          }),
+          returnGeometry: "false",
+          geometryType: "esriGeometryPoint",
+          spatialRel: "esriSpatialRelIntersects"
+        });
+        const requestURL = yield getQueryUrl(releaseNumber, zoom);
+        const res = yield fetch(`${requestURL}?${queryParams.toString()}`);
+        if (!res.ok) {
+          throw new Error("failed to query metadata for " + releaseNumber + " release of world imagery wayback");
+        }
+        const data = yield res.json();
+        if (data.error) {
+          throw data.error;
+        }
+        const feature3 = data.features && data.features.length ? data.features[0] : null;
+        if (!feature3) {
+          return null;
+        }
+        const { attributes } = feature3;
+        const date = attributes[SOURCE_DATE];
+        const provider = attributes[SOURCE_PROVIDER];
+        const source = attributes[SOURCE_NAME];
+        const resolution2 = attributes[RESOLUTION];
+        const accuracy = attributes[ACCURACY];
+        return {
+          date,
+          provider,
+          source,
+          resolution: resolution2,
+          accuracy
+        };
+      });
+      exports.getMetadata = getMetadata;
+      var getQueryUrl = (releaseNum, zoom) => __awaiter(void 0, void 0, void 0, function* () {
+        const waybackItem = yield (0, waybackItems_1.getWaybackItemByReleaseNumber)(releaseNum);
+        if (!waybackItem) {
+          throw new Error(`failed to find wayback item that with release number of ${releaseNum}`);
+        }
+        const { metadataLayerUrl } = waybackItem;
+        const layerId = getLayerId(zoom);
+        return `${metadataLayerUrl}/${layerId}/query`;
+      });
+      var getLayerId = (zoom) => {
+        const layerID = MAX_ZOOM - zoom;
+        const layerIdForMinZoom = MAX_ZOOM - MIN_ZOOM;
+        if (layerID > layerIdForMinZoom) {
+          return layerIdForMinZoom;
+        }
+        return layerID;
+      };
+    }
+  });
+
+  // node_modules/@esri/wayback-core/dist/index.js
+  var require_dist = __commonJS({
+    "node_modules/@esri/wayback-core/dist/index.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.tile2lat = exports.tile2Long = exports.lat2tile = exports.long2tile = exports.getWaybackServiceBaseURL = exports.getWaybackSubDomains = exports.setCustomWaybackConfig = exports.getMetadata = exports.getWaybackItems = exports.getWaybackItemsWithLocalChanges = void 0;
+      var change_detector_1 = require_change_detector();
+      Object.defineProperty(exports, "getWaybackItemsWithLocalChanges", { enumerable: true, get: function() {
+        return change_detector_1.getWaybackItemsWithLocalChanges;
+      } });
+      var metadata_1 = require_metadata();
+      Object.defineProperty(exports, "getMetadata", { enumerable: true, get: function() {
+        return metadata_1.getMetadata;
+      } });
+      var waybackItems_1 = require_waybackItems();
+      Object.defineProperty(exports, "getWaybackItems", { enumerable: true, get: function() {
+        return waybackItems_1.getWaybackItems;
+      } });
+      var config_1 = require_config();
+      Object.defineProperty(exports, "getWaybackSubDomains", { enumerable: true, get: function() {
+        return config_1.getWaybackSubDomains;
+      } });
+      Object.defineProperty(exports, "getWaybackServiceBaseURL", { enumerable: true, get: function() {
+        return config_1.getWaybackServiceBaseURL;
+      } });
+      Object.defineProperty(exports, "setCustomWaybackConfig", { enumerable: true, get: function() {
+        return config_1.setCustomWaybackConfig;
+      } });
+      var geometry_1 = require_geometry();
+      Object.defineProperty(exports, "long2tile", { enumerable: true, get: function() {
+        return geometry_1.long2tile;
+      } });
+      Object.defineProperty(exports, "lat2tile", { enumerable: true, get: function() {
+        return geometry_1.lat2tile;
+      } });
+      Object.defineProperty(exports, "tile2Long", { enumerable: true, get: function() {
+        return geometry_1.tile2Long;
+      } });
+      Object.defineProperty(exports, "tile2lat", { enumerable: true, get: function() {
+        return geometry_1.tile2lat;
+      } });
+    }
+  });
+
   // modules/core/heritage_project.js
   var heritage_project_exports = {};
   __export(heritage_project_exports, {
@@ -39130,6 +39715,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     let _projects = [];
     let _projectsRoot = "";
     let _activeProject = null;
+    let _waybackItems = [];
     let _lastFeatureCount = 0;
     let _lastError = null;
     const debouncedSave = debounce2(() => {
@@ -39166,7 +39752,29 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       return {
         imageryLayerID: source.id || "",
         imagerySource: source.imageryUsed && source.imageryUsed() || source.name && source.name() || "",
-        imageryTimestamp
+        imageryTimestamp,
+        waybackReleaseNum: source.releaseNum || _activeProject && _activeProject.waybackReleaseNum || "",
+        imagerySourceType: source.sourceType || _activeProject && _activeProject.imagerySourceType || ""
+      };
+    }
+    function waybackTemplate(item) {
+      return (item.itemURL || "").replace(/\{level\}/g, "{z}").replace(/\{row\}/g, "{y}").replace(/\{col\}/g, "{x}");
+    }
+    function waybackSourceData(project) {
+      if (!project || !project.waybackReleaseNum || !project.waybackTileURL) return null;
+      return {
+        id: `EsriWayback-${project.waybackReleaseNum}`,
+        type: "wayback",
+        name: `Esri Wayback ${project.waybackReleaseDate || project.imageryTimestamp || project.waybackReleaseNum}`,
+        template: waybackTemplate({ itemURL: project.waybackTileURL }),
+        releaseNum: Number(project.waybackReleaseNum),
+        releaseDateLabel: project.waybackReleaseDate || project.imageryTimestamp || "",
+        layerIdentifier: project.waybackLayerID || "",
+        startDate: project.waybackReleaseDate || project.imageryTimestamp || "",
+        endDate: project.waybackReleaseDate || project.imageryTimestamp || "",
+        sourceType: "esri-wayback",
+        tileSize: 256,
+        zoomExtent: [1, 20]
       };
     }
     function featureForEntity(change) {
@@ -39188,6 +39796,8 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
         imageryCRS: project.crs || "",
         imagerySource: imagery.imagerySource,
         imageryLayerID: imagery.imageryLayerID,
+        imagerySourceType: imagery.imagerySourceType,
+        waybackReleaseNum: imagery.waybackReleaseNum,
         idEditorEntityID: entity.id,
         idEditorEntityType: entity.type,
         changeType: change.changeType
@@ -39211,6 +39821,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     heritage.projects = () => _projects.slice();
     heritage.projectsRoot = () => _projectsRoot;
     heritage.activeProject = () => _activeProject;
+    heritage.waybackItems = () => _waybackItems.slice();
     heritage.lastFeatureCount = () => _lastFeatureCount;
     heritage.lastError = () => _lastError;
     heritage.loadProjects = async function() {
@@ -39232,14 +39843,14 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       corePreferences(ACTIVE_PROJECT_PREF, createdProject.folder);
       await heritage.loadProjects();
       activateProject(_projects.find((project) => project.folder === createdProject.folder) || createdProject);
-      heritage.applyCustomImagery();
+      heritage.applyProjectImagery();
       dispatch11.call("change", heritage);
       return _activeProject;
     };
     heritage.setActiveProject = async function(folder) {
       const result2 = await requestJSON(`${API_ROOT}/projects/${encodeURIComponent(folder)}/metadata`);
       activateProject(result2.project);
-      heritage.applyCustomImagery();
+      heritage.applyProjectImagery();
       dispatch11.call("change", heritage);
       return _activeProject;
     };
@@ -39255,9 +39866,16 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       const updatedProject = result2.project;
       activateProject(updatedProject);
       _projects = _projects.map((project) => project.folder === updatedProject.folder ? updatedProject : project);
-      heritage.applyCustomImagery();
+      heritage.applyProjectImagery();
       dispatch11.call("change", heritage);
       return _activeProject;
+    };
+    heritage.applyProjectImagery = function() {
+      if (!_activeProject) return heritage;
+      if (_activeProject.imagerySourceType === "esri-wayback") {
+        return heritage.applyWaybackImagery();
+      }
+      return heritage.applyCustomImagery();
     };
     heritage.applyCustomImagery = function() {
       if (!_activeProject || !_activeProject.customTileURL) return heritage;
@@ -39269,6 +39887,53 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       corePreferences("background-last-used", "custom");
       background.baseLayerSource(customSource);
       return heritage;
+    };
+    heritage.applyWaybackImagery = function() {
+      const data = waybackSourceData(_activeProject);
+      if (!data) return heritage;
+      const background = context.background();
+      if (!background || !background.addSource) return heritage;
+      const source = background.addSource(data);
+      if (!source) return heritage;
+      corePreferences("background-last-used", source.id);
+      background.baseLayerSource(source);
+      return heritage;
+    };
+    heritage.loadWaybackItems = async function(options = {}) {
+      const map4 = context.map();
+      const center = options.center || map4.center();
+      const zoom = Math.max(1, Math.min(20, Math.round(options.zoom || map4.zoom() || 15)));
+      const point3 = {
+        longitude: center[0],
+        latitude: center[1]
+      };
+      _waybackItems = options.allVersions ? await (0, import_wayback_core.getWaybackItems)() : await (0, import_wayback_core.getWaybackItemsWithLocalChanges)(point3, zoom);
+      dispatch11.call("change", heritage);
+      return _waybackItems;
+    };
+    heritage.selectWaybackRelease = async function(releaseNum) {
+      if (!_activeProject) {
+        throw new Error("Create or open a project first.");
+      }
+      let item = _waybackItems.find((d2) => String(d2.releaseNum) === String(releaseNum));
+      if (!item) {
+        const allItems = await (0, import_wayback_core.getWaybackItems)();
+        item = allItems.find((d2) => String(d2.releaseNum) === String(releaseNum));
+      }
+      if (!item) {
+        throw new Error("Wayback release not found.");
+      }
+      const project = await heritage.updateActiveProject({
+        imagerySourceType: "esri-wayback",
+        imageryTimestamp: item.releaseDateLabel,
+        crs: "EPSG:3857",
+        waybackReleaseNum: item.releaseNum,
+        waybackReleaseDate: item.releaseDateLabel,
+        waybackLayerID: item.layerIdentifier,
+        waybackTileURL: item.itemURL
+      });
+      heritage.applyWaybackImagery();
+      return project;
     };
     heritage.toGeoJSON = function() {
       const project = _activeProject;
@@ -39286,6 +39951,11 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
           projectFolder: project.folder,
           imageryTimestamp: project.imageryTimestamp || "",
           imageryCRS: project.crs || "",
+          imagerySourceType: project.imagerySourceType || "",
+          waybackReleaseNum: project.waybackReleaseNum || "",
+          waybackReleaseDate: project.waybackReleaseDate || "",
+          waybackLayerID: project.waybackLayerID || "",
+          waybackTileURL: project.waybackTileURL || "",
           customTileURL: project.customTileURL || "",
           generatedAt: (/* @__PURE__ */ new Date()).toISOString()
         },
@@ -39336,12 +40006,13 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     };
     return utilRebind(heritage, dispatch11, "on");
   }
-  var API_ROOT, ACTIVE_PROJECT_PREF;
+  var import_wayback_core, API_ROOT, ACTIVE_PROJECT_PREF;
   var init_heritage_project = __esm({
     "modules/core/heritage_project.js"() {
       "use strict";
       init_src();
       init_compat2();
+      import_wayback_core = __toESM(require_dist(), 1);
       init_change_tags();
       init_preferences();
       init_util2();
@@ -61675,12 +62346,13 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
     };
     return source;
   }
-  var isRetina;
+  var import_wayback_core2, isRetina;
   var init_background_source = __esm({
     "modules/renderer/background_source.js"() {
       "use strict";
       init_src5();
       init_src21();
+      import_wayback_core2 = __toESM(require_dist(), 1);
       init_localizer();
       init_geo2();
       init_util2();
@@ -61917,6 +62589,63 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
           return -2;
         };
         return source;
+      };
+      rendererBackgroundSource.Wayback = function(data) {
+        var wayback = rendererBackgroundSource(data);
+        var releaseNum = data.releaseNum;
+        var releaseDateLabel = data.releaseDateLabel || data.startDate;
+        var cache = {};
+        var inflight = {};
+        wayback.name = function() {
+          return data.name || `Esri Wayback ${releaseDateLabel || releaseNum}`;
+        };
+        wayback.label = function() {
+          return (selection2) => selection2.text(wayback.name());
+        };
+        wayback.imageryUsed = function() {
+          return `Esri Wayback${releaseDateLabel ? ` ${releaseDateLabel}` : ""}`;
+        };
+        wayback.getMetadata = function(center, tileCoord, callback) {
+          var tileID = tileCoord.slice(0, 3).join("/");
+          var zoom = Math.min(tileCoord[2], wayback.zoomExtent[1]);
+          if (!releaseNum) {
+            return callback(null, {
+              vintage: {
+                start: localeDateString(releaseDateLabel),
+                end: localeDateString(releaseDateLabel),
+                range: localeDateString(releaseDateLabel)
+              }
+            });
+          }
+          if (inflight[tileID]) return;
+          if (!cache[tileID]) cache[tileID] = {};
+          if (cache[tileID].metadata) return callback(null, cache[tileID].metadata);
+          inflight[tileID] = true;
+          (0, import_wayback_core2.getMetadata)({
+            longitude: center[0],
+            latitude: center[1]
+          }, zoom, releaseNum).then((result2) => {
+            delete inflight[tileID];
+            var captureDate = result2 && result2.date ? localeDateString(new Date(result2.date)) : localeDateString(releaseDateLabel);
+            var metadata = {
+              vintage: {
+                start: captureDate,
+                end: captureDate,
+                range: captureDate
+              },
+              source: result2 && result2.source || "",
+              description: result2 && result2.provider || "",
+              resolution: result2 && result2.resolution ? `${result2.resolution} m` : "",
+              accuracy: result2 && result2.accuracy ? `${result2.accuracy} m` : ""
+            };
+            cache[tileID].metadata = metadata;
+            if (callback) callback(null, metadata);
+          }).catch((err) => {
+            delete inflight[tileID];
+            if (callback) callback(err.message);
+          });
+        };
+        return wayback;
       };
     }
   });
@@ -63387,21 +64116,24 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
           return feature3;
         }).filter(Boolean);
         _imageryIndex.query = (0, import_which_polygon3.default)({ type: "FeatureCollection", features });
-        _imageryIndex.backgrounds = sources.map((source) => {
-          if (source.type === "bing") {
-            return rendererBackgroundSource.Bing(source, dispatch11);
-          } else if (/^EsriWorldImagery/.test(source.id)) {
-            return rendererBackgroundSource.Esri(source);
-          } else {
-            return rendererBackgroundSource(source);
-          }
-        });
+        _imageryIndex.backgrounds = sources.map(makeBackgroundSource);
         _imageryIndex.backgrounds.unshift(rendererBackgroundSource.None());
         let template2 = corePreferences("background-custom-template") || "";
         const custom10 = rendererBackgroundSource.Custom(template2);
         _imageryIndex.backgrounds.unshift(custom10);
         return _imageryIndex;
       });
+    }
+    function makeBackgroundSource(source) {
+      if (source.type === "bing") {
+        return rendererBackgroundSource.Bing(source, dispatch11);
+      } else if (source.type === "wayback") {
+        return rendererBackgroundSource.Wayback(source);
+      } else if (/^EsriWorldImagery/.test(source.id)) {
+        return rendererBackgroundSource.Esri(source);
+      } else {
+        return rendererBackgroundSource(source);
+      }
     }
     function background(selection2) {
       const currSource = baseLayer.source();
@@ -63556,6 +64288,17 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
     background.findSource = (id2) => {
       if (!id2 || !_imageryIndex) return null;
       return _imageryIndex.backgrounds.find((d2) => d2.id && d2.id === id2);
+    };
+    background.addSource = (sourceData) => {
+      if (!sourceData || !sourceData.id || !_imageryIndex) return null;
+      const existingIndex = _imageryIndex.backgrounds.findIndex((d2) => d2.id === sourceData.id);
+      const source = makeBackgroundSource(sourceData);
+      if (existingIndex !== -1) {
+        _imageryIndex.backgrounds[existingIndex] = source;
+      } else {
+        _imageryIndex.backgrounds.push(source);
+      }
+      return source;
     };
     background.bing = () => {
       background.baseLayerSource(background.findSource("Bing"));
@@ -70089,8 +70832,10 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       }
     }
     function valuesFromPanel(panel) {
+      const activeProject = manager().activeProject();
       return {
         name: panel.select(".heritage-project-name").property("value").trim(),
+        imagerySourceType: activeProject && activeProject.imagerySourceType || "custom",
         imageryTimestamp: panel.select(".heritage-project-timestamp").property("value").trim(),
         crs: panel.select(".heritage-project-crs").property("value").trim() || "EPSG:3857",
         customTileURL: panel.select(".heritage-project-tile-url").property("value").trim()
@@ -70115,6 +70860,7 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       const heritage = manager();
       const activeProject = heritage.activeProject();
       const projects = heritage.projects();
+      const waybackItems = heritage.waybackItems();
       let wrap3 = context.container().selectAll(".heritage-project-panel-wrap").data([0]);
       const wrapEnter = wrap3.enter().append("div").attr("class", "heritage-project-panel-wrap");
       const panelEnter = wrapEnter.append("div").attr("class", "heritage-project-panel");
@@ -70148,6 +70894,14 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       const tileField = body.append("label").attr("class", "heritage-project-field");
       tileField.append("span").text("Custom tile or WMS template");
       tileField.append("textarea").attr("class", "heritage-project-tile-url").attr("rows", 3).attr("placeholder", "https://tiles.example.org/{z}/{x}/{y}.png");
+      const waybackField = body.append("label").attr("class", "heritage-project-field");
+      waybackField.append("span").text("Esri Wayback release");
+      waybackField.append("select").attr("class", "heritage-wayback-select");
+      const waybackButtons = body.append("div").attr("class", "buttons fillL heritage-project-buttons heritage-wayback-buttons");
+      waybackButtons.append("button").attr("class", "secondary-action button heritage-load-wayback-local").text("Load Local Wayback Dates");
+      waybackButtons.append("button").attr("class", "secondary-action button heritage-load-wayback-all").text("Load All Wayback Dates");
+      waybackButtons.append("button").attr("class", "action button heritage-apply-wayback").text("Use Wayback");
+      waybackButtons.append("button").attr("class", "secondary-action button heritage-use-custom").text("Use Custom Tiles");
       const buttons = body.append("div").attr("class", "buttons fillL heritage-project-buttons");
       buttons.append("button").attr("class", "action button heritage-create-project").text("Create");
       buttons.append("button").attr("class", "secondary-action button heritage-update-project").text("Update Metadata");
@@ -70166,6 +70920,16 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       panel.select(".heritage-project-timestamp").property("value", activeProject ? activeProject.imageryTimestamp || "" : "");
       panel.select(".heritage-project-crs").property("value", activeProject ? activeProject.crs || "EPSG:3857" : "EPSG:3857");
       panel.select(".heritage-project-tile-url").property("value", activeProject ? activeProject.customTileURL || "" : "");
+      const waybackOptions = panel.select(".heritage-wayback-select").selectAll("option").data(
+        [{ releaseNum: "", releaseDateLabel: waybackItems.length ? "Select a Wayback release" : "Load Wayback dates first" }].concat(waybackItems),
+        (d2) => d2.releaseNum
+      );
+      waybackOptions.exit().remove();
+      waybackOptions.enter().append("option").merge(waybackOptions).attr("value", (d2) => d2.releaseNum).text((d2) => {
+        if (!d2.releaseNum) return d2.releaseDateLabel;
+        return `${d2.releaseDateLabel} (${d2.layerIdentifier || d2.releaseNum})`;
+      });
+      panel.select(".heritage-wayback-select").property("value", activeProject && activeProject.waybackReleaseNum ? activeProject.waybackReleaseNum : "");
       panel.select(".heritage-create-project").on("click", function(d3_event) {
         d3_event.preventDefault();
         withStatus(
@@ -70179,6 +70943,53 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         withStatus(
           () => heritage.updateActiveProject(valuesFromPanel(panel)),
           "Project metadata updated."
+        );
+      });
+      panel.select(".heritage-load-wayback-local").classed("disabled", !activeProject).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        setStatus("Loading Wayback dates near the map center...", "");
+        withStatus(
+          () => heritage.loadWaybackItems(),
+          (items) => `Loaded ${items.length} local Wayback releases.`
+        );
+      });
+      panel.select(".heritage-load-wayback-all").classed("disabled", !activeProject).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        setStatus("Loading all Wayback dates...", "");
+        withStatus(
+          () => heritage.loadWaybackItems({ allVersions: true }),
+          (items) => `Loaded ${items.length} Wayback releases.`
+        );
+      });
+      panel.select(".heritage-apply-wayback").classed("disabled", !activeProject || !waybackItems.length).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        const releaseNum = panel.select(".heritage-wayback-select").property("value");
+        if (!releaseNum) {
+          setStatus("Choose a Wayback release first.", "error");
+          return;
+        }
+        withStatus(
+          () => heritage.selectWaybackRelease(releaseNum),
+          (project) => `Using Esri Wayback ${project.waybackReleaseDate || project.imageryTimestamp}.`
+        );
+      });
+      panel.select(".heritage-use-custom").classed("disabled", !activeProject).on("click", function(d3_event) {
+        d3_event.preventDefault();
+        if (!activeProject) return;
+        const values3 = valuesFromPanel(panel);
+        withStatus(
+          () => heritage.updateActiveProject({
+            ...values3,
+            imagerySourceType: "custom",
+            waybackReleaseNum: "",
+            waybackReleaseDate: "",
+            waybackLayerID: "",
+            waybackTileURL: ""
+          }),
+          "Using custom tile/WMS imagery."
         );
       });
       panel.select(".heritage-save-project").classed("disabled", !activeProject).on("click", function(d3_event) {
