@@ -14,6 +14,8 @@ export function uiToolHeritageProject(context) {
     let tooltipBehavior = null;
     let statusMessage = '';
     let statusType = '';
+    const roadFeatureKeys = ['traffic_roads', 'service_roads', 'paths'];
+    const buildingFeatureKeys = ['buildings', 'building_parts'];
 
 
     function manager() {
@@ -68,6 +70,25 @@ export function uiToolHeritageProject(context) {
             crs: panel.select('.heritage-project-crs').property('value').trim() || 'EPSG:3857',
             customTileURL: panel.select('.heritage-project-tile-url').property('value').trim()
         };
+    }
+
+
+    function showAllFeatures() {
+        context.features().enableAll();
+        setStatus('Showing all OSM feature types.', 'success');
+    }
+
+
+    function hideRoadFeatures() {
+        roadFeatureKeys.forEach(key => context.features().disable(key));
+        setStatus('Roads and paths hidden.', 'success');
+    }
+
+
+    function showBuildingFeaturesOnly() {
+        context.features().disableAll();
+        buildingFeatureKeys.forEach(key => context.features().enable(key));
+        setStatus('Showing buildings and building parts only.', 'success');
     }
 
 
@@ -236,6 +257,25 @@ export function uiToolHeritageProject(context) {
             .append('button')
             .attr('class', 'secondary-action button heritage-use-custom')
             .text('Use Custom Tiles');
+
+        const filterButtons = body
+            .append('div')
+            .attr('class', 'buttons fillL heritage-project-buttons heritage-filter-buttons');
+
+        filterButtons
+            .append('button')
+            .attr('class', 'secondary-action button heritage-hide-roads')
+            .text('Hide Roads');
+
+        filterButtons
+            .append('button')
+            .attr('class', 'secondary-action button heritage-buildings-only')
+            .text('Buildings Only');
+
+        filterButtons
+            .append('button')
+            .attr('class', 'secondary-action button heritage-show-all-features')
+            .text('Show All');
 
         const buttons = body
             .append('div')
@@ -410,6 +450,24 @@ export function uiToolHeritageProject(context) {
                     }),
                     'Using custom tile/WMS imagery.'
                 );
+            });
+
+        panel.select('.heritage-hide-roads')
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                hideRoadFeatures();
+            });
+
+        panel.select('.heritage-buildings-only')
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                showBuildingFeaturesOnly();
+            });
+
+        panel.select('.heritage-show-all-features')
+            .on('click', function(d3_event) {
+                d3_event.preventDefault();
+                showAllFeatures();
             });
 
         panel.select('.heritage-save-project')

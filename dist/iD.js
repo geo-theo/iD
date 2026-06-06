@@ -39698,6 +39698,37 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
   function objectIDForEntity(project, entity) {
     return cleanObjectID(entity.tags.objectID) || cleanObjectID(entity.tags["heritage:object_id"]) || cleanObjectID(`${project.folder}-${entity.id}`);
   }
+  function coordPairs(coords, result2 = []) {
+    if (!Array.isArray(coords)) return result2;
+    if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+      result2.push(coords);
+      return result2;
+    }
+    coords.forEach((coord2) => coordPairs(coord2, result2));
+    return result2;
+  }
+  function geometryBBox(geometry2) {
+    const pairs2 = coordPairs(geometry2 && geometry2.coordinates);
+    if (!pairs2.length) return null;
+    return pairs2.reduce((bbox2, coord2) => {
+      const lon = coord2[0];
+      const lat = coord2[1];
+      if (typeof lon !== "number" || typeof lat !== "number") return bbox2;
+      return [
+        Math.min(bbox2[0], lon),
+        Math.min(bbox2[1], lat),
+        Math.max(bbox2[2], lon),
+        Math.max(bbox2[3], lat)
+      ];
+    }, [Infinity, Infinity, -Infinity, -Infinity]);
+  }
+  function bboxesIntersect(a2, b11) {
+    if (!a2 || !b11 || a2.some((value) => !isFinite(value))) return false;
+    return a2[0] <= b11[2] && a2[2] >= b11[0] && a2[1] <= b11[3] && a2[3] >= b11[1];
+  }
+  function geometryIntersectsStudyArea(geometry2) {
+    return bboxesIntersect(geometryBBox(geometry2), STUDY_AREA.bbox);
+  }
   async function requestJSON(url, options = {}) {
     const response = await fetch(url, {
       headers: { "Content-Type": "application/json" },
@@ -39785,6 +39816,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       if (!entity || entity.geometry(graph) === "vertex") return null;
       const geometry2 = entity.asGeoJSON(graph);
       if (!geometry2 || geometry2.type === "FeatureCollection") return null;
+      if (!geometryIntersectsStudyArea(geometry2)) return null;
       const imagery = currentImageryMetadata();
       const objectID = objectIDForEntity(project, entity);
       const properties = {
@@ -39794,6 +39826,8 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
         projectFolder: project.folder,
         dataset: project.name,
         datasetFolder: project.folder,
+        studyArea: STUDY_AREA.id,
+        studyAreaName: STUDY_AREA.name,
         imageryTimestamp: imagery.imageryTimestamp,
         imageryCRS: project.crs || "",
         imagerySource: imagery.imagerySource,
@@ -39953,6 +39987,9 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
           projectFolder: project.folder,
           dataset: project.name,
           datasetFolder: project.folder,
+          studyArea: STUDY_AREA.id,
+          studyAreaName: STUDY_AREA.name,
+          studyAreaBbox: STUDY_AREA.bbox,
           imageryTimestamp: project.imageryTimestamp || "",
           imageryCRS: project.crs || "",
           imagerySourceType: project.imagerySourceType || "",
@@ -40010,7 +40047,7 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
     };
     return utilRebind(heritage, dispatch11, "on");
   }
-  var import_wayback_core, API_ROOT, ACTIVE_PROJECT_PREF;
+  var import_wayback_core, API_ROOT, ACTIVE_PROJECT_PREF, STUDY_AREA;
   var init_heritage_project = __esm({
     "modules/core/heritage_project.js"() {
       "use strict";
@@ -40022,6 +40059,11 @@ Please report this to https://github.com/markedjs/marked.`, e3) {
       init_util2();
       API_ROOT = "/heritage/api";
       ACTIVE_PROJECT_PREF = "heritage-active-project";
+      STUDY_AREA = {
+        id: "timbuktu",
+        name: "Timbuktu",
+        bbox: [-3.06, 16.72, -2.94, 16.82]
+      };
     }
   });
 
@@ -70807,6 +70849,8 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
     let tooltipBehavior = null;
     let statusMessage = "";
     let statusType = "";
+    const roadFeatureKeys = ["traffic_roads", "service_roads", "paths"];
+    const buildingFeatureKeys = ["buildings", "building_parts"];
     function manager() {
       return context.heritageProject();
     }
@@ -70844,6 +70888,19 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
         crs: panel.select(".heritage-project-crs").property("value").trim() || "EPSG:3857",
         customTileURL: panel.select(".heritage-project-tile-url").property("value").trim()
       };
+    }
+    function showAllFeatures() {
+      context.features().enableAll();
+      setStatus("Showing all OSM feature types.", "success");
+    }
+    function hideRoadFeatures() {
+      roadFeatureKeys.forEach((key) => context.features().disable(key));
+      setStatus("Roads and paths hidden.", "success");
+    }
+    function showBuildingFeaturesOnly() {
+      context.features().disableAll();
+      buildingFeatureKeys.forEach((key) => context.features().enable(key));
+      setStatus("Showing buildings and building parts only.", "success");
     }
     function closePanel() {
       context.container().selectAll(".heritage-project-panel-wrap").remove();
@@ -70906,6 +70963,10 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
       waybackButtons.append("button").attr("class", "secondary-action button heritage-load-wayback-all").text("Load All Wayback Dates");
       waybackButtons.append("button").attr("class", "action button heritage-apply-wayback").text("Use Wayback");
       waybackButtons.append("button").attr("class", "secondary-action button heritage-use-custom").text("Use Custom Tiles");
+      const filterButtons = body.append("div").attr("class", "buttons fillL heritage-project-buttons heritage-filter-buttons");
+      filterButtons.append("button").attr("class", "secondary-action button heritage-hide-roads").text("Hide Roads");
+      filterButtons.append("button").attr("class", "secondary-action button heritage-buildings-only").text("Buildings Only");
+      filterButtons.append("button").attr("class", "secondary-action button heritage-show-all-features").text("Show All");
       const buttons = body.append("div").attr("class", "buttons fillL heritage-project-buttons");
       buttons.append("button").attr("class", "action button heritage-create-project").text("Create Dataset");
       buttons.append("button").attr("class", "secondary-action button heritage-update-project").text("Update Dataset");
@@ -70995,6 +71056,18 @@ ${formatTag(field.key, v3, _isMulti)}` : formatTag(field.key, v3, _isMulti),
           }),
           "Using custom tile/WMS imagery."
         );
+      });
+      panel.select(".heritage-hide-roads").on("click", function(d3_event) {
+        d3_event.preventDefault();
+        hideRoadFeatures();
+      });
+      panel.select(".heritage-buildings-only").on("click", function(d3_event) {
+        d3_event.preventDefault();
+        showBuildingFeaturesOnly();
+      });
+      panel.select(".heritage-show-all-features").on("click", function(d3_event) {
+        d3_event.preventDefault();
+        showAllFeatures();
       });
       panel.select(".heritage-save-project").classed("disabled", !activeProject).on("click", function(d3_event) {
         d3_event.preventDefault();

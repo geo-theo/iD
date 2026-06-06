@@ -9,6 +9,11 @@ import { utilRebind } from '../util';
 
 const API_ROOT = '/heritage/api';
 const ACTIVE_PROJECT_PREF = 'heritage-active-project';
+const STUDY_AREA = {
+    id: 'timbuktu',
+    name: 'Timbuktu',
+    bbox: [-3.06, 16.72, -2.94, 16.82]
+};
 
 
 function cleanObjectID(value) {
@@ -23,6 +28,48 @@ function objectIDForEntity(project, entity) {
     return cleanObjectID(entity.tags.objectID) ||
         cleanObjectID(entity.tags['heritage:object_id']) ||
         cleanObjectID(`${project.folder}-${entity.id}`);
+}
+
+
+function coordPairs(coords, result = []) {
+    if (!Array.isArray(coords)) return result;
+
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+        result.push(coords);
+        return result;
+    }
+
+    coords.forEach(coord => coordPairs(coord, result));
+    return result;
+}
+
+
+function geometryBBox(geometry) {
+    const pairs = coordPairs(geometry && geometry.coordinates);
+    if (!pairs.length) return null;
+
+    return pairs.reduce((bbox, coord) => {
+        const lon = coord[0];
+        const lat = coord[1];
+        if (typeof lon !== 'number' || typeof lat !== 'number') return bbox;
+        return [
+            Math.min(bbox[0], lon),
+            Math.min(bbox[1], lat),
+            Math.max(bbox[2], lon),
+            Math.max(bbox[3], lat)
+        ];
+    }, [Infinity, Infinity, -Infinity, -Infinity]);
+}
+
+
+function bboxesIntersect(a, b) {
+    if (!a || !b || a.some(value => !isFinite(value))) return false;
+    return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+
+function geometryIntersectsStudyArea(geometry) {
+    return bboxesIntersect(geometryBBox(geometry), STUDY_AREA.bbox);
 }
 
 
@@ -140,6 +187,7 @@ export function coreHeritageProject(context) {
 
         const geometry = entity.asGeoJSON(graph);
         if (!geometry || geometry.type === 'FeatureCollection') return null;
+        if (!geometryIntersectsStudyArea(geometry)) return null;
 
         const imagery = currentImageryMetadata();
         const objectID = objectIDForEntity(project, entity);
@@ -150,6 +198,8 @@ export function coreHeritageProject(context) {
             projectFolder: project.folder,
             dataset: project.name,
             datasetFolder: project.folder,
+            studyArea: STUDY_AREA.id,
+            studyAreaName: STUDY_AREA.name,
             imageryTimestamp: imagery.imageryTimestamp,
             imageryCRS: project.crs || '',
             imagerySource: imagery.imagerySource,
@@ -360,6 +410,9 @@ export function coreHeritageProject(context) {
                 projectFolder: project.folder,
                 dataset: project.name,
                 datasetFolder: project.folder,
+                studyArea: STUDY_AREA.id,
+                studyAreaName: STUDY_AREA.name,
+                studyAreaBbox: STUDY_AREA.bbox,
                 imageryTimestamp: project.imageryTimestamp || '',
                 imageryCRS: project.crs || '',
                 imagerySourceType: project.imagerySourceType || '',

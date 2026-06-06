@@ -711,6 +711,10 @@ button.save .count {
     gap: 8px;
 }
 
+.heritage-filter-buttons {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .heritage-project-buttons button,
 .heritage-project-buttons a.button {
     align-items: center;

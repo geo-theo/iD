@@ -8,6 +8,11 @@ import { buildCSS } from './build_css.js';
 
 const port = 8080;
 const projectsRoot = path.resolve('../datasets');
+const studyArea = {
+  id: 'timbuktu',
+  name: 'Timbuktu',
+  bbox: [-3.06, 16.72, -2.94, 16.82]
+};
 
 function projectFolderName(name) {
   return String(name || '')
@@ -34,6 +39,44 @@ function projectPath(folder, filename = '') {
     throw Object.assign(new Error('Invalid dataset path'), { statusCode: 400 });
   }
   return resolved;
+}
+
+function coordPairs(coords, result = []) {
+  if (!Array.isArray(coords)) return result;
+
+  if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+    result.push(coords);
+    return result;
+  }
+
+  coords.forEach(coord => coordPairs(coord, result));
+  return result;
+}
+
+function geometryBBox(geometry) {
+  const pairs = coordPairs(geometry && geometry.coordinates);
+  if (!pairs.length) return null;
+
+  return pairs.reduce((bbox, coord) => {
+    const lon = coord[0];
+    const lat = coord[1];
+    if (typeof lon !== 'number' || typeof lat !== 'number') return bbox;
+    return [
+      Math.min(bbox[0], lon),
+      Math.min(bbox[1], lat),
+      Math.max(bbox[2], lon),
+      Math.max(bbox[3], lat)
+    ];
+  }, [Infinity, Infinity, -Infinity, -Infinity]);
+}
+
+function bboxesIntersect(a, b) {
+  if (!a || !b || a.some(value => !isFinite(value))) return false;
+  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+function featureIntersectsStudyArea(feature) {
+  return bboxesIntersect(geometryBBox(feature && feature.geometry), studyArea.bbox);
 }
 
 async function readJSON(filename, fallback) {
@@ -92,6 +135,9 @@ function emptyFeatureCollection(metadata) {
       projectFolder: metadata.folder,
       dataset: metadata.name,
       datasetFolder: metadata.folder,
+      studyArea: studyArea.id,
+      studyAreaName: studyArea.name,
+      studyAreaBbox: studyArea.bbox,
       imageryTimestamp: metadata.imageryTimestamp || '',
       imageryCRS: metadata.crs || '',
       imagerySourceType: metadata.imagerySourceType || '',
@@ -235,12 +281,16 @@ async function handleHeritageAPI(request, response) {
     }
 
     features.name = metadata.name;
+    features.features = features.features.filter(featureIntersectsStudyArea);
     features.metadata = {
       ...(features.metadata || {}),
       project: metadata.name,
       projectFolder: metadata.folder,
       dataset: metadata.name,
       datasetFolder: metadata.folder,
+      studyArea: studyArea.id,
+      studyAreaName: studyArea.name,
+      studyAreaBbox: studyArea.bbox,
       imageryTimestamp: metadata.imageryTimestamp || '',
       imageryCRS: metadata.crs || '',
       imagerySourceType: metadata.imagerySourceType || '',

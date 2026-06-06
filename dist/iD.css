@@ -4519,6 +4519,10 @@
     gap: 8px;
 }
 
+.ideditor .heritage-filter-buttons {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .ideditor .heritage-project-buttons button,
 .ideditor .heritage-project-buttons a.button {
     align-items: center;
