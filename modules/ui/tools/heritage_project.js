@@ -15,7 +15,14 @@ export function uiToolHeritageProject(context) {
     let statusMessage = '';
     let statusType = '';
     const roadFeatureKeys = ['traffic_roads', 'service_roads', 'paths'];
-    const buildingFeatureKeys = ['buildings', 'building_parts'];
+    const featureFocusPresets = [
+        { id: 'all', label: 'All', keys: null, message: 'Showing all OSM feature types.' },
+        { id: 'buildings', label: 'Buildings', keys: ['buildings', 'building_parts'], message: 'Showing buildings and building parts only.' },
+        { id: 'roads', label: 'Roads', keys: roadFeatureKeys, message: 'Showing roads and paths only.' },
+        { id: 'pois', label: 'POIs', keys: ['points', 'address_points'], message: 'Showing POIs and address points only.' },
+        { id: 'land-water', label: 'Land/Water', keys: ['landuse', 'water'], message: 'Showing landuse and water only.' },
+        { id: 'boundaries', label: 'Boundaries', keys: ['boundaries'], message: 'Showing boundaries only.' }
+    ];
 
 
     function manager() {
@@ -73,22 +80,14 @@ export function uiToolHeritageProject(context) {
     }
 
 
-    function showAllFeatures() {
-        context.features().enableAll();
-        setStatus('Showing all OSM feature types.', 'success');
-    }
-
-
-    function hideRoadFeatures() {
-        roadFeatureKeys.forEach(key => context.features().disable(key));
-        setStatus('Roads and paths hidden.', 'success');
-    }
-
-
-    function showBuildingFeaturesOnly() {
-        context.features().disableAll();
-        buildingFeatureKeys.forEach(key => context.features().enable(key));
-        setStatus('Showing buildings and building parts only.', 'success');
+    function applyFeatureFocus(preset) {
+        if (!preset.keys) {
+            context.features().enableAll();
+        } else {
+            context.features().disableAll();
+            preset.keys.forEach(key => context.features().enable(key));
+        }
+        setStatus(preset.message, 'success');
     }
 
 
@@ -262,20 +261,14 @@ export function uiToolHeritageProject(context) {
             .append('div')
             .attr('class', 'buttons fillL heritage-project-buttons heritage-filter-buttons');
 
-        filterButtons
-            .append('button')
-            .attr('class', 'secondary-action button heritage-hide-roads')
-            .text('Hide Roads');
-
-        filterButtons
-            .append('button')
-            .attr('class', 'secondary-action button heritage-buildings-only')
-            .text('Buildings Only');
-
-        filterButtons
-            .append('button')
-            .attr('class', 'secondary-action button heritage-show-all-features')
-            .text('Show All');
+        featureFocusPresets.forEach(preset => {
+            filterButtons
+                .append('button')
+                .datum(preset)
+                .attr('class', `secondary-action button heritage-feature-focus heritage-feature-focus-${preset.id}`)
+                .attr('data-focus', preset.id)
+                .text(preset.label);
+        });
 
         const buttons = body
             .append('div')
@@ -452,22 +445,10 @@ export function uiToolHeritageProject(context) {
                 );
             });
 
-        panel.select('.heritage-hide-roads')
-            .on('click', function(d3_event) {
+        panel.selectAll('.heritage-feature-focus')
+            .on('click', function(d3_event, preset) {
                 d3_event.preventDefault();
-                hideRoadFeatures();
-            });
-
-        panel.select('.heritage-buildings-only')
-            .on('click', function(d3_event) {
-                d3_event.preventDefault();
-                showBuildingFeaturesOnly();
-            });
-
-        panel.select('.heritage-show-all-features')
-            .on('click', function(d3_event) {
-                d3_event.preventDefault();
-                showAllFeatures();
+                applyFeatureFocus(preset);
             });
 
         panel.select('.heritage-save-project')
