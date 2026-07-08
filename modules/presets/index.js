@@ -8,6 +8,7 @@ import { osmNodeGeometriesForTags, osmSetAreaKeys, osmSetLineTags, osmSetPointTa
 import { presetCategory } from './category';
 import { presetCollection } from './collection';
 import { presetField } from './field';
+import { heritagePresetData, heritagePresetDefaultIDs } from './heritage_data';
 import { presetPreset } from './preset';
 import { utilArrayUniq, utilRebind } from '../util';
 
@@ -71,11 +72,18 @@ export function presetIndex() {
         fileFetcher.get('preset_fields')
       ])
       .then(vals => {
+        const defaults = Object.assign({}, vals[1]);
+        Object.keys(heritagePresetDefaultIDs).forEach(geometry => {
+          defaults[geometry] = utilArrayUniq(
+            heritagePresetDefaultIDs[geometry].concat(defaults[geometry] || [])
+          );
+        });
+
         _this.merge({
           categories: vals[0],
-          defaults: vals[1],
-          presets: vals[2],
-          fields: vals[3]
+          defaults,
+          presets: Object.assign({}, vals[2], heritagePresetData.presets),
+          fields: Object.assign({}, vals[3], heritagePresetData.fields)
         });
         osmSetAreaKeys(_this.areaKeys());
         osmSetLineTags(_this.lineTags());

@@ -247,6 +247,83 @@ describe('iD.presetIndex', function () {
     });
 
 
+    describe('#heritagePresets', function () {
+        var savedCache;
+
+        beforeEach(function() {
+            var cache = iD.fileFetcher.cache();
+            savedCache = {
+                preset_categories: cache.preset_categories,
+                preset_defaults: cache.preset_defaults,
+                preset_fields: cache.preset_fields,
+                preset_presets: cache.preset_presets
+            };
+
+            cache.preset_categories = {};
+            cache.preset_defaults = {
+                area: [],
+                line: [],
+                point: [],
+                relation: [],
+                vertex: []
+            };
+            cache.preset_fields = {};
+            cache.preset_presets = {};
+        });
+
+        afterEach(function() {
+            Object.assign(iD.fileFetcher.cache(), savedCache);
+        });
+
+        it('loads the cultural heritage presets and fields', async () => {
+            var presets = iD.presetIndex();
+            await presets.ensureLoaded();
+
+            var sitePreset = presets.item('heritage/cultural_site');
+            expect(sitePreset.name()).to.eql('Cultural Heritage Site');
+            expect(sitePreset.fields().map(field => field.id)).to.include.members([
+                'heritage/status',
+                'heritage/confidence',
+                'heritage/source_imagery',
+                'heritage/evidence_note'
+            ]);
+            expect(sitePreset.setTags({}, 'area')['heritage:feature']).to.eql('site');
+
+            var destroyedBuildingPreset = presets.item('heritage/destroyed_building');
+            expect(destroyedBuildingPreset.setTags({}, 'area')).to.include({
+                building: 'yes',
+                'heritage:feature': 'building',
+                'heritage:status': 'destroyed'
+            });
+
+            var damageEventPreset = presets.item('heritage/damage_event');
+            expect(damageEventPreset.setTags({}, 'point')).to.include({
+                'heritage:event': 'damage',
+                'heritage:status': 'damaged'
+            });
+        });
+
+        it('prepends heritage presets to point, line, and area defaults', async () => {
+            var presets = iD.presetIndex();
+            await presets.ensureLoaded();
+
+            expect(presets.defaults('area', 10).collection.map(preset => preset.id)).to.include.members([
+                'heritage/cultural_site',
+                'heritage/destroyed_building',
+                'heritage/damage_event'
+            ]);
+            expect(presets.defaults('line', 10).collection.map(preset => preset.id)).to.include.members([
+                'heritage/cultural_site',
+                'heritage/damage_event'
+            ]);
+            expect(presets.defaults('point', 10).collection.map(preset => preset.id)).to.include.members([
+                'heritage/cultural_site',
+                'heritage/damage_event'
+            ]);
+        });
+    });
+
+
     describe.skip('#build', function () {
         it('builds presets from provided', function () {
             var surfShop = new iD.osmNode({ tags: { amenity: 'shop', 'shop:type': 'surf' } });
